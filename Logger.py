@@ -1,4 +1,4 @@
-#! /usr/bin/env python3
+! /usr/bin/env python3
 #
 # Set up a logger. It can log to a console, file, and/or email.
 #
@@ -34,7 +34,9 @@ def addArgs(parser:ArgumentParser) -> None:
     gg.add_argument('--debug', action='store_true', help='Enable very verbose logging')
     gg.add_argument('--verbose', action='store_true', help='Enable verbose logging')
 
-def mkLogger(args:ArgumentParser, fmt:str=None, name:str=None) -> logging.Logger:
+def mkLogger(args:ArgumentParser, 
+        fmt:str="%(asctime)s %(threadName)s %(levelname)s: %(message)s",
+        name:str=None) -> logging.Logger:
     ''' Construct a logger and return it '''
     logger = logging.getLogger(name) # If name is None, then root logger
     logger.handlers.clear() # Clear any pre-existing handlers for name
@@ -53,8 +55,6 @@ def mkLogger(args:ArgumentParser, fmt:str=None, name:str=None) -> logging.Logger
     logger.setLevel(logLevel)
     ch.setLevel(logLevel)
 
-    if fmt is None:
-        fmt = '%(asctime)s %(threadName)s %(levelname)s: %(message)s'
     formatter = logging.Formatter(fmt)
     ch.setFormatter(formatter)
 
@@ -77,7 +77,7 @@ if __name__ == "__main__":
     addArgs(parser)
     args = parser.parse_args()
 
-    mkLogger(args, fmt = "%(asctime)s %(levelname)s: %(message)s")
+    mkLogger(args, fmt="%(asctime)s %(levelname)s: %(message)s")
     logging.error("Error message")
     logging.warning("Warning message")
     logging.info("Info message")
