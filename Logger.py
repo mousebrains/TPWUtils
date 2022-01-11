@@ -1,4 +1,4 @@
-! /usr/bin/env python3
+#! /usr/bin/env python3
 #
 # Set up a logger. It can log to a console, file, and/or email.
 #
@@ -16,12 +16,12 @@ import getpass
 #
 def addArgs(parser:ArgumentParser) -> None:
     ''' Add command line arguments I will use '''
-    grp = parser.add_argument_group('Logger Related Options')
-    grp.add_argument('--logfile', type=str, metavar='filename', help='Name of logfile')
-    grp.add_argument('--logBytes', type=int, default=10000000, metavar='length',
-            help='Maximum logfile size in bytes')
-    grp.add_argument('--logCount', type=int, default=3, metavar='count',
-            help='Number of backup files to keep')
+    grp = parser.add_argument_group("Logger Related Options")
+    grp.add_argument("--logfile", type=str, metavar="filename", help="Name of logfile")
+    grp.add_argument("--logBytes", type=int, default=10000000, metavar="length",
+            help="Maximum logfile size in bytes")
+    grp.add_argument("--logCount", type=int, default=3, metavar="count",
+            help="Number of backup files to keep")
     grp.add_argument("--mailTo", action="append", metavar="foo@bar.com",
             help="Where to mail errors and exceptions to")
     grp.add_argument("--mailFrom", type=str, metavar="foo@bar.com",
@@ -31,8 +31,8 @@ def addArgs(parser:ArgumentParser) -> None:
     grp.add_argument("--smtpHost", type=str, default="localhost", metavar="foo.bar.com",
             help="SMTP server to mail to")
     gg = grp.add_mutually_exclusive_group()
-    gg.add_argument('--debug', action='store_true', help='Enable very verbose logging')
-    gg.add_argument('--verbose', action='store_true', help='Enable verbose logging')
+    gg.add_argument("--debug", action="store_true", help="Enable very verbose logging")
+    gg.add_argument("--verbose", action="store_true", help="Enable verbose logging")
 
 def mkLogger(args:ArgumentParser, 
         fmt:str="%(asctime)s %(threadName)s %(levelname)s: %(message)s",
