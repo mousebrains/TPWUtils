@@ -36,7 +36,8 @@ def addArgs(parser:ArgumentParser) -> None:
 
 def mkLogger(args:ArgumentParser, 
         fmt:str="%(asctime)s %(threadName)s %(levelname)s: %(message)s",
-        name:str=None) -> logging.Logger:
+        name:str=None,
+        logLevel:str="WARNING") -> logging.Logger:
     ''' Construct a logger and return it '''
     logger = logging.getLogger(name) # If name is None, then root logger
     logger.handlers.clear() # Clear any pre-existing handlers for name
@@ -51,7 +52,7 @@ def mkLogger(args:ArgumentParser,
     logLevel = \
             logging.DEBUG if args.debug else \
             logging.INFO if args.verbose else \
-            logging.WARNING
+            logLevel
     logger.setLevel(logLevel)
     ch.setLevel(logLevel)
 
