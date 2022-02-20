@@ -4,8 +4,16 @@
 #
 # Feb-2022, Pat Welch, pat@mousebrains.com
 import numpy as np
+from enum import Enum
 
-def greatCircle(lon0:np.array, lat0:np.array, lon1:np.array, lat1:np.array, re=6378e3):
+class Radius(float, Enum):
+    Kilometers = 6378.
+    Meters = Kilometers * 1000
+    Miles = Meters / 1609.34
+    NauticalMiles = Meters / 1852
+
+def greatCircle(lon0:np.array, lat0:np.array, lon1:np.array, lat1:np.array, 
+        re:Radius=Radius.Meters):
     ''' Radius of earth in meters '''
     lon0 = np.radians(lon0) # Convert from decimal degrees to radians
     lat0 = np.radians(lat0)
@@ -16,8 +24,9 @@ def greatCircle(lon0:np.array, lat0:np.array, lon1:np.array, lat1:np.array, re=6
     dLon = (lon1 - lon0)
     a = np.square(np.sin(dLat / 2)) + np.cos(lat0) * np.cos(lat1) * np.square(np.sin(dLon / 2))
     c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
-    d = re * c
-    return c
+    if isinstance(re, Radius):
+        re = re.value
+    return re * c # Great circle distance in re units
 
 class DistanceDegree:
     def __init__(self, distPerDeg:float, degRef:float) -> None:
@@ -50,4 +59,6 @@ if __name__ == "__main__":
     lat1 = -lat0
     lon0 = np.linspace(-180, 180, n)
     lon1 = -lon0
-    print(greatCircle(lon0, lat0, lon1, lat1))
+    print(greatCircle(lon0, lat0, lon1, lat1)) # Default of meters
+    print(greatCircle(lon0, lat0, lon1, lat1, Radius.NauticalMiles)) # Specify different radius
+    print(greatCircle(lon0, lat0, lon1, lat1, 6378e3 / 1852)) # Specify different radius as float
