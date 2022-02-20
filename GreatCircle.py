@@ -46,12 +46,14 @@ class DistanceDegree:
         return self.__degRef + dist / self.distPerDeg
 
 class Dist2Lon(DistanceDegree):
-    def __init__(self, latRef:float, lonRef:float) -> None:
-        DistanceDegree.__init__(self, greatCircle(lonRef-0.5, latRef, lonRef+0.5, latRef), lonRef)
+    def __init__(self, latRef:float, lonRef:float, re:Radius=Radius.Meters) -> None:
+        DistanceDegree.__init__(self, 
+                greatCircle(lonRef-0.5, latRef, lonRef+0.5, latRef, re), lonRef)
 
 class Dist2Lat(DistanceDegree):
-    def __init__(self, latRef:float, lonRef:float) -> None:
-        DistanceDegree.__init__(self, greatCircle(lonRef, latRef-0.5, lonRef, latRef+0.5), latRef)
+    def __init__(self, latRef:float, lonRef:float, re:Radius=Radius.Meters) -> None:
+        DistanceDegree.__init__(self, 
+                greatCircle(lonRef, latRef-0.5, lonRef, latRef+0.5, re), latRef)
 
 if __name__ == "__main__":
     n = 10
