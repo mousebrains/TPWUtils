@@ -9,3 +9,5 @@
 - `Thread.py` is a *threading.Thread* class which catches exceptions and sends them to a queue. Then the main thread can wait on the queue for a problem to arise in any of the threads.
 
 - `INotify.py` is a thread which waits for modifications in a file system then forwards the modifications to a set of queues for other threads to process. It handles adding/removing of directories.
+
+- `GreatCircle.py` calculates great circle distances on the earth in meters
