@@ -17,8 +17,6 @@ except:
 
 class INotify(Thread):
     def __init__(self, args:ArgumentParser, flags:int=None) -> None:
-        # queues:list[queue.Queue]=None, paths:list[str]=None,
-        # mask:int=pyinotify.ALL_EVENTS, qRecursive:bool=True, qAutoAdd:bool=True) -> None:
         Thread.__init__(self, "INotify", args)
         self.__wm = pyinotify.WatchManager()
         self.__notifier = pyinotify.Notifier(self.__wm)
@@ -47,12 +45,10 @@ class INotify(Thread):
     def addTree(self, tgt:str) -> None:
         self.addWatch(tgt, qRecursive=True, qAutoAdd=True)
 
-    def addWatch(self, tgt:str, mask:int=None, qRecursive:bool=None, qAutoAdd:bool=None) -> bool:
+    def addWatch(self, tgt:str, mask:int=None, qRecursive:bool=False, qAutoAdd:bool=False) -> bool:
         tgt = os.path.abspath(os.path.expanduser(tgt))
         if os.path.isdir(tgt):
             mask = mask if mask is not None else self.__flags
-            qRecursive = qRecursive if qRecursive is not None else self.__qRecursive
-            qAutoAdd = qAutoAdd if qAutoAdd is not None else self.__qAutoAdd
             self.__wm.add_watch(path=tgt, mask=mask, proc_fun=self.__eventHandler, 
                     rec=qRecursive, auto_add=qAutoAdd)
             logging.info("Added watch for %s, rec %s auto %s msk %s",
