@@ -58,7 +58,7 @@ class INotify(Thread):
         return False
 
     def runIt(self) -> None: # Called on thread start
-        logging.warning("Starting loop")
+        logging.info("Starting loop")
         self.__notifier.loop() # All the action happens in __eventHandler
         logging.warning("Leaving loop")
 
