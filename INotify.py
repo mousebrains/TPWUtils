@@ -66,7 +66,7 @@ class INotify(Thread):
         t0 = time.time() # Time of the event
         fn = e.path if e.dir else os.path.join(e.path, e.name)
         self.queue.put((t0, fn))
-        logging.info("Event %s, %s", fn, e.maskname)
+        logging.debug("Event %s, %s", fn, e.maskname)
 
 if __name__ == "__main__":
     import Logger
