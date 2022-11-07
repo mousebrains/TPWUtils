@@ -35,12 +35,20 @@ def addArgs(parser:ArgumentParser) -> None:
     gg.add_argument("--verbose", action="store_true", help="Enable verbose logging")
 
 def mkLogger(args:ArgumentParser, 
-        fmt:str="%(asctime)s %(threadName)s %(levelname)s: %(message)s",
+        fmt:str=None,
         name:str=None,
-        logLevel:str="WARNING") -> logging.Logger:
+        logLevel:str="WARNING",
+        qThreaded:bool=True
+        ) -> logging.Logger:
     ''' Construct a logger and return it '''
     logger = logging.getLogger(name) # If name is None, then root logger
     logger.handlers.clear() # Clear any pre-existing handlers for name
+
+    if fmt is None:
+        if qThreaded:
+            fmt = "%(asctime)s %(threadName)s %(levelname)s: %(message)s"
+        else:
+            fmt = "%(asctime)s %(levelname)s: %(message)s"
 
     if args.logfile:
         ch = logging.handlers.RotatingFileHandler(args.logfile,
