@@ -10,4 +10,4 @@
 
 - `INotify.py` is a thread which waits for modifications in a file system then forwards the modifications to a set of queues for other threads to process. It handles adding/removing of directories.
 
-- `GreatCircle.py` calculates great circle distances on the earth in meters
+- `GreatCircle.py` calculates great circle distances on the earth in meters using Vincenty's method. Compared against Matlab's distance function, distance.sample.nc, it should give a maximum difference around 1e-7.
