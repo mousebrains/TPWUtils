@@ -18,15 +18,19 @@ class Units(float, Enum):
 def greatCircle(lon1:np.array, lat1:np.array, lon2:np.array, lat2:np.array, 
                 units:Units=Units.Meters, criteria:float=1e-12):
     ''' Radius of earth in meters using Vicenty's inverse method '''
-    lon1 = np.deg2rad(lon1) # Convert from decimal degrees to radians
-    lat1 = np.deg2rad(lat1)
-    lon2 = np.deg2rad(lon2)
-    lat2 = np.deg2rad(lat2)
 
     rMajor = 6378137          # WGS-84 semi-major axis in meters
     f = 1/298.257223563       # WGS-84 flattening of the ellipsoid
     rMinor = (1 - f) * rMajor # WGS-84 semi-minor axis in meters
-    print(rMinor)
+
+    # Avoid a division problem with the points are the same
+    qSame = np.logical_and(lat1 == lat2, lon1 == lon2)
+    qDiff = np.logical_not(qSame)
+
+    lon1 = np.deg2rad(lon1[qDiff]) # Convert from decimal degrees to radians
+    lat1 = np.deg2rad(lat1[qDiff])
+    lon2 = np.deg2rad(lon2[qDiff])
+    lat2 = np.deg2rad(lat2[qDiff])
 
     tanU1 = (1 - f) * np.tan(lat1) # Tangent of reduced latitude
     tanU2 = (1 - f) * np.tan(lat2)
@@ -73,7 +77,10 @@ def greatCircle(lon1:np.array, lat1:np.array, lon2:np.array, lat2:np.array,
                 cosSigma * (-1 + 2 * cos2Sigma**2) - 
                 B/6 * cos2Sigma * (-3 + 4 * sinSigma**2) * (-3 + 4 * cos2Sigma**2))
              )
-    return units * rMinor * A * (sigma - deltaSigma) # Distance on the elipsoid
+
+    a = np.zeros(qSame.shape)
+    a[qDiff] = units * rMinor * A * (sigma - deltaSigma) # Distance on the elipsoid
+    return a
 
 class DistanceDegree:
     def __init__(self, distPerDeg:float, degRef:float) -> None:
@@ -123,8 +130,7 @@ if __name__ == "__main__":
     else: # Some uniform spacing
         n = 10
         df = pd.DataFrame({"lat1": np.linspace(-50,50,n), "lon1": np.linspace(-180,180,n)})
-        df["lat2"] = -df.lat1
-        df["lon2"] = -df.lon1
-        df["meters"] = greatCircle(df.lon1, df.lat1, df.lon2, df.lat2) # Default of meters
-        df["nm"] = greatCircle(df.lon1, df.lat1, df.lon2, df.lat2, Units.NauticalMiles)
+        df["meters"] = greatCircle(df.lon1, df.lat1, -df.lon1, -df.lat1) # Default of meters
+        df["nm"]     = greatCircle(df.lon1, df.lat1, -df.lon1, -df.lat1, Units.NauticalMiles)
+        df["same"]   = greatCircle(df.lon1, df.lat1,  df.lon1,  df.lat1) # Should all be zero
         print(df)
