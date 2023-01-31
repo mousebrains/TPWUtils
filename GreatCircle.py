@@ -19,6 +19,11 @@ def greatCircle(lon1:np.array, lat1:np.array, lon2:np.array, lat2:np.array,
                 units:Units=Units.Meters, criteria:float=1e-12):
     ''' Radius of earth in meters using Vicenty's inverse method '''
 
+    if isinstance(lon1, float): lon1 = np.array([lon1])
+    if isinstance(lat1, float): lat1 = np.array([lat1])
+    if isinstance(lon2, float): lon2 = np.array([lon2])
+    if isinstance(lat2, float): lat2 = np.array([lat2])
+
     rMajor = 6378137          # WGS-84 semi-major axis in meters
     f = 1/298.257223563       # WGS-84 flattening of the ellipsoid
     rMinor = (1 - f) * rMajor # WGS-84 semi-minor axis in meters
@@ -102,12 +107,12 @@ class DistanceDegree:
 class Dist2Lon(DistanceDegree):
     def __init__(self, latRef:float, lonRef:float, re:Units=Units.Meters) -> None:
         DistanceDegree.__init__(self, 
-                greatCircle(lonRef-0.5, latRef, lonRef+0.5, latRef, re), lonRef)
+                float(greatCircle(lonRef-0.5, latRef, lonRef+0.5, latRef, re)), lonRef)
 
 class Dist2Lat(DistanceDegree):
     def __init__(self, latRef:float, lonRef:float, re:Units=Units.Meters) -> None:
         DistanceDegree.__init__(self, 
-                greatCircle(lonRef, latRef-0.5, lonRef, latRef+0.5, re), latRef)
+                float(greatCircle(lonRef, latRef-0.5, lonRef, latRef+0.5, re)), latRef)
 
 if __name__ == "__main__":
     from argparse import ArgumentParser
