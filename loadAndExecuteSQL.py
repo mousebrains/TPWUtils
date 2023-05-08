@@ -9,7 +9,7 @@
 
 import logging
 
-def loadAndExecuteSQL(db, fn:str) -> bool:
+def loadAndExecuteSQL(db, fn:str, tableName:str=None) -> bool:
     body = None
     try:
         with open(fn, "r") as fp: body = fp.read()
@@ -21,9 +21,18 @@ def loadAndExecuteSQL(db, fn:str) -> bool:
 
     try:
         cur = db.cursor()
+
+        if tableName is not None: # Check if this table already exists
+            cur.execute("SELECT EXISTS(SELECT relname FROM pg_class WHERE relname=%s);",
+                        (tableName,))
+            for row in cur:
+                if row[0]: return True # Already exists
+                break
+
         cur.execute("BEGIN TRANSACTION;")
         cur.execute(body)
         db.commit()
+        return True
     except:
         logging.execution("Unable to execute %s", fn)
         db.rollback()
