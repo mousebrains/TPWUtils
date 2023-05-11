@@ -11,13 +11,6 @@ import logging
 
 def loadAndExecuteSQL(db, fn:str, tableName:str=None) -> bool:
     body = None
-    try:
-        with open(fn, "r") as fp: body = fp.read()
-        logging.info("Load %s, %s bytes", fn, len(body))
-        logging.debug("Body\n%s", body)
-    except:
-        logging.execution("Unable to load %s", fn)
-        return False
 
     try:
         cur = db.cursor()
@@ -29,12 +22,15 @@ def loadAndExecuteSQL(db, fn:str, tableName:str=None) -> bool:
                 if row[0]: return True # Already exists
                 break
 
+        with open(fn, "r") as fp: body = fp.read()
+        logging.info("Loaded %s, %s bytes", fn, len(body))
+
         cur.execute("BEGIN TRANSACTION;")
         cur.execute(body)
         db.commit()
         return True
     except:
-        logging.execution("Unable to execute %s", fn)
+        logging.exception("Unable to execute %s", fn)
         db.rollback()
         return False
 
