@@ -32,21 +32,26 @@ def stripComments(fn:str) -> str:
             if line: lines.append(line)
     return "\n".join(lines)
 
-def maybeCopy(src:str, args:ArgumentParser) -> bool:
+def needsToBeCopied(src:str, args:ArgumentParser) -> str:
     src = os.path.abspath(os.path.expanduser(src))
     tgt = os.path.join(args.serviceDirectory, os.path.basename(src))
 
     if not args.force and os.path.isfile(tgt):
         sContent = stripComments(src)
         tContent = stripComments(tgt)
-        if sContent == tContent: return False
+        if sContent == tContent: return None
+    return tgt
 
+def copyFiles(items:set, args:ArgumentParser) -> None:
     cmd = []
     if not args.user: cmd.append(args.sudo)
-    cmd.extend((args.cp, src, tgt))
-    logging.info("Copying %s", " ".join(cmd))
-    if not args.dryrun: subprocess.run(cmd, shell=False, check=True)
-    return True
+    cmd.append(args.cp)
+    for item in items:
+        a = list(cmd)
+        a.extend(item)
+        logging.info("Copying %s", " ".join(a))
+        if not args.dryrun:
+            subprocess.run(a, shell=False, check=True)
 
 def mkSystemctl(args:ArgumentParser, options:list=None, extras:set=None, chk:bool=True) -> list:
     cmd = [args.systemctl, "--user"] if args.user else [args.sudo, args.systemctl]
@@ -89,17 +94,19 @@ def install(args:ArgumentParser) -> int:
     if args.logdir: args.logdir = makeDirectory(args.logdir, args, True) 
     args.serviceDirectory = makeDirectory(args.serviceDirectory, args)
 
-    qUpdated = False # Was a new copy of any service or timer file installed?
-
+    toCopy = set() # Files that need to be copied
     for fn in services.union(timers): # Copy services and timers as needed
-        qUpdated |= maybeCopy(fn, args)
+        tgt = needsToBeCopied(fn, args)
+        if tgt: toCopy.add((fn, tgt))
 
-    if not qUpdated:
-        logging.info("No services were different")
+    if not toCopy:
+        logging.info("Nothing needs to be done")
         return 0
 
     mkSystemctl(args, ("stop",), toStart, False) # Stop all the processes that need stopped
-    mkSystemctl(args, ("dameon-reload",)) # Force reload of the daemon
+    mkSystemctl(args, ("disable",), toStart, False) # disable all the services/timers that need stopped
+    copyFiles(toCopy, args)
+    mkSystemctl(args, ("daemon-reload",)) # Force reload of the daemon
     mkSystemctl(args, ("enable",), todos)
 
     if toStart: mkSystemctl(args, ("start",), toStart)
