@@ -24,7 +24,7 @@ def getCredentials(fn:str) -> str:
             }
 
     if not os.path.isdir(os.path.dirname(fn)):
-        logging.info("Creating %s", os.path.dirname(fn)))
+        logging.info("Creating %s", os.path.dirname(fn))
         os.makedirs(os.path.dirname(fn), mode=0o700, exist_ok=True)
 
     with open(fn, "w") as fp:
