@@ -1,19 +1,24 @@
 #! /usr/bin/env python3
 #
-# Install the service(s)
+# Install the service(s) and timer(s)
 #
 # Feb-2022, Pat Welch, pat@mousebrains.com
+# June-2023, Pat Welch, pat@mousebrains.com updated for both root and user
 
 from argparse import ArgumentParser
+import logging
 import subprocess
 import os
 import sys
 
-def makeDirectory(dirname:str) -> str:
+def makeDirectory(dirname:str, args:ArgumentParser, qUser:bool=False) -> str:
     dirname = os.path.abspath(os.path.expanduser(dirname))
-    if not os.path.isdir(dirname):
-        print("Creating", dirname)
-        os.makedirs(dirname, mode=0o755, exist_ok=True) # exist_ok=True is for race conditions
+    if os.path.isdir(dirname): return dirname
+    cmd = []
+    if not qUser and not args.user: cmd.append(args.sudo)
+    cmd.extend((args.mkdir, "-p", dirname))
+    logging.info("Creating %s", " ".join(cmd))
+    if not args.dryrun: subprocess.run(cmd, shell=False, check=True)
     return dirname
 
 def stripComments(fn:str) -> str:
@@ -27,105 +32,143 @@ def stripComments(fn:str) -> str:
             if line: lines.append(line)
     return "\n".join(lines)
 
-def maybeCopy(src:str, tgt:str) -> bool:
+def maybeCopy(src:str, args:ArgumentParser) -> bool:
     src = os.path.abspath(os.path.expanduser(src))
-    tgt = makeDirectory(tgt)
-    tgt = os.path.join(tgt, os.path.basename(src))
+    tgt = os.path.join(args.serviceDirectory, os.path.basename(src))
 
-    if os.path.isfile(tgt):
+    if not args.force and os.path.isfile(tgt):
         sContent = stripComments(src)
         tContent = stripComments(tgt)
         if sContent == tContent: return False
 
-    with open(src, "r") as fp: content = fp.read()
-    with open(tgt, "w") as fp: fp.write(content)
+    cmd = []
+    if not args.user: cmd.append(args.sudo)
+    cmd.extend((args.cp, src, tgt))
+    logging.info("Copying %s", " ".join(cmd))
+    if not args.dryrun: subprocess.run(cmd, shell=False, check=True)
     return True
 
-parser = ArgumentParser()
-parser.add_argument("--force", action="store_true", help="Force reloading ...")
-parser.add_argument("--serviceDirectory", type=str, default="~/.config/systemd/user",
-        help="Where to copy service file to")
-parser.add_argument("--systemctl", type=str, default="/usr/bin/systemctl",
-        help="systemctl executable")
-parser.add_argument("--loginctl", type=str, default="/usr/bin/loginctl",
-        help="loginctl executable")
-parser.add_argument("--logdir", type=str, default="~/logs", help="Where logfiles are stored")
-parser.add_argument("services", type=str, nargs="+", help="Service file(s)")
-args = parser.parse_args()
+def mkSystemctl(args:ArgumentParser, options:list=None, extras:set=None, chk:bool=True) -> list:
+    cmd = [args.systemctl, "--user"] if args.user else [args.sudo, args.systemctl]
+    if options: cmd.extend(options)
+    if extras: cmd.extend(extras)
+    logging.info("%s", " ".join(cmd))
+    if not args.dryrun:
+        subprocess.run(cmd, shell=False, check=chk)
 
-timers = set()
-services = set()
-timerServices = set()
+def common(args:ArgumentParser) -> tuple:
+    if not args.serviceDirectory:
+        args.serviceDirectory = "~/.config/systemd/user" if args.user else "/etc/systemd/system"
+    args.serviceDirectory = os.path.abspath(os.path.expanduser(args.serviceDirectory))
 
-for item in args.services:
-    if item[-8:] == ".service":
-        services.add(item)
-    elif item[-6:] == ".timer":
-        timers.add(item)
-    else:
-        print("Unsupported file suffix in", item)
+    services = set()
+    timers= set()
+    toStart = set()
 
-if not timers and not services:
-    print("No services specified")
+    for service in args.service:
+        service = os.path.abspath(os.path.expanduser(service))
+        if not os.path.isfile(service):
+            logging.error("%s does not exist", service)
+            return 1
+        services.add(service)
+        dirname = os.path.dirname(service)
+        (basename, suffix) = os.path.splitext(os.path.basename(service))
+        timer = os.path.join(dirname, basename + ".timer") # Potential timer file
+        if os.path.isfile(timer):
+            timers.add(timer)
+            toStart.add(os.path.basename(timer))
+        else:
+            toStart.add(os.path.basename(service))
 
-for item in timers: # Now split out services with timers
-    a = item.replace(".timer", ".service")
-    if a in services:
-        timerServices.add(a)
-        services.remove(a)
+    todos = set(map(os.path.basename, services.union(timers))) # All services and timers basename
+    return (services, timers, toStart, todos)
 
-toStart = services.union(timers) # Services and timers that need started
-onlyServices = services.union(timerServices)
-todos = list(toStart.union(timerServices)) # All services and timers 
-print("services", services)
-print("timers", timers)
-print("timerServices", timerServices)
-print("todos", todos)
-print("toStart", toStart)
-print("onlyServices", onlyServices)
+def install(args:ArgumentParser) -> int:
+    (services, timers, toStart, todos) = common(args)
 
-makeDirectory(args.logdir) # Make sure the log directory exists
-root = args.serviceDirectory # Where service files are stored
-q = False # Was a new copy of any service file installed?
-for service in todos:
-    qq = maybeCopy(service, args.serviceDirectory)
-    q |= qq
+    if args.logdir: args.logdir = makeDirectory(args.logdir, args, True) 
+    args.serviceDirectory = makeDirectory(args.serviceDirectory, args)
 
-if not q and not args.force:
-    print("No services were different")
-    sys.exit(0)
+    qUpdated = False # Was a new copy of any service or timer file installed?
 
-print(f"Stopping {todos}")
-cmd = [args.systemctl, "--user", "stop"]
-cmd.extend(todos)
-subprocess.run(cmd, shell=False, check=False) # Don't exit on error if services don't exist
+    for fn in services.union(timers): # Copy services and timers as needed
+        qUpdated |= maybeCopy(fn, args)
 
-print("Forcing reload of daemon")
-subprocess.run((args.systemctl, "--user", "daemon-reload"),
-        shell=False, check=True)
+    if not qUpdated:
+        logging.info("No services were different")
+        return 0
 
-print(f"Enabling {todos}")
-cmd = [args.systemctl, "--user", "enable"]
-cmd.extend(todos)
-subprocess.run(cmd, shell=False, check=True)
+    mkSystemctl(args, ("stop",), toStart, False) # Stop all the processes that need stopped
+    mkSystemctl(args, ("dameon-reload",)) # Force reload of the daemon
+    mkSystemctl(args, ("enable",), todos)
 
-if toStart:
-    print(f"Starting {toStart}")
-    cmd = [args.systemctl, "--user", "start"]
-    cmd.extend(toStart)
+    if toStart: mkSystemctl(args, ("start",), toStart)
+
+    if args.user:
+        cmd = (args.loginctl, "enable-linger")
+        logging.info("Enable Linger %s", " ".join(cmd))
+        if not args.dryrun: subprocess.run(cmd, shell=False, check=True)
+
+    mkSystemctl(args, ("--no-pager", "status"), todos, False)
+
+    if timers:
+        mkSystemctl(args, ("--no-pager", "list-timers"), map(os.path.basename, timers), False)
+
+    return 0
+
+def uninstall(args:ArgumentParser) -> int:
+    (services, timers, toStart, todos) = common(args)
+
+    toDelete = set()
+    for fn in todos:
+        ofn = os.path.join(args.serviceDirectory, os.path.basename(fn))
+        if os.path.isfile(ofn): toDelete.add(ofn)
+
+    if not toDelete: return 0 # Nothing to be removed
+    mkSystemctl(args, ("stop",), toStart, False)
+    mkSystemctl(args, ("disable",), todos, False)
+
+    cmd = [args.rm, "-f"] if args.user else [args.sudo, args.rm, "-f"]
+    cmd.extend(toDelete)
     subprocess.run(cmd, shell=False, check=True)
 
-print("Enable lingering")
-subprocess.run((args.loginctl, "enable-linger"), shell=False, check=True)
+    mkSystemctl(args, ("daemon-reload",))
+    return 0
 
-if onlyServices:
-    print(f"Status {onlyServices}")
-    cmd = [args.systemctl, "--user", "--no-pager", "status"]
-    cmd.extend(onlyServices)
-    s = subprocess.run(cmd, shell=False, check=False)
+def addArgs(parser:ArgumentParser) -> None:
+    grp = parser.add_mutually_exclusive_group()
+    grp.add_argument("--install", action="store_true", help="Install services and timers")
+    grp.add_argument("--uninstall", action="store_true", help="remove services and timers")
 
-if timers:
-    print(f"Timers {timers}")
-    cmd = [args.systemctl, "--user", "--no-pager", "list-timers"]
-    cmd.extend(timers)
-    s = subprocess.run(cmd, shell=False, check=False)
+    grp = parser.add_mutually_exclusive_group()
+    grp.add_argument("--user", action="store_true", help="Install in user space")
+    grp.add_argument("--system", action="store_true", help="Install in system space")
+
+    grp = parser.add_argument_group("Command paths")
+    grp.add_argument("--sudo", type=str, default="/usr/bin/sudo", help="sudo executable")
+    grp.add_argument("--systemctl", type=str, default="/usr/bin/systemctl",
+                     help="systemctl executable")
+    grp.add_argument("--loginctl", type=str, default="/usr/bin/loginctl",
+                     help="loginctl executable")
+    grp.add_argument("--mkdir", type=str, default="/bin/mkdir", help="mkdir executable")
+    grp.add_argument("--cp", type=str, default="/bin/cp", help="cp executable")
+    grp.add_argument("--rm", type=str, default="/bin/rm", help="rm executable")
+
+    grp = parser.add_argument_group("Service/timer related options")
+    grp.add_argument("--force", action="store_true", help="Force reloading ...")
+    grp.add_argument("--serviceDirectory", type=str, help="Where to copy service file to")
+    grp.add_argument("--service", type=str, required=True, action="append", help="Service file(s)")
+    grp.add_argument("--logdir", type=str, default="~/logs", help="Where logfiles are stored")
+    grp.add_argument("--dryrun", action="store_true", help="Do not actually install anything")
+
+if __name__ == "__main__":
+    import Logger
+
+    parser = ArgumentParser()
+    Logger.addArgs(parser)
+    addArgs(parser)
+    args = parser.parse_args()
+
+    Logger.mkLogger(args, fmt="%(asctime)s %(levelname)s: %(message)s")
+
+    sys.exit(uninstall(args) if args.uninstall else install(args))
