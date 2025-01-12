@@ -68,28 +68,31 @@ def common(args:ArgumentParser) -> tuple:
 
     services = set()
     timers= set()
+    toEnable = set()
     toStart = set()
 
     for service in args.service:
         service = os.path.abspath(os.path.expanduser(service))
         if not os.path.isfile(service):
             logging.error("%s does not exist", service)
-            return 1
+            return (None, None, None, None, None)
         services.add(service)
         dirname = os.path.dirname(service)
         (basename, suffix) = os.path.splitext(os.path.basename(service))
         timer = os.path.join(dirname, basename + ".timer") # Potential timer file
         if os.path.isfile(timer):
             timers.add(timer)
+            toEnable.add(os.path.basename(timer))
             toStart.add(os.path.basename(timer))
         else:
+            toEnable.add(os.path.basename(service))
             toStart.add(os.path.basename(service))
 
     todos = set(map(os.path.basename, services.union(timers))) # All services and timers basename
-    return (services, timers, toStart, todos)
+    return (services, timers, toEnable, toStart, todos)
 
 def install(args:ArgumentParser) -> int:
-    (services, timers, toStart, todos) = common(args)
+    (services, timers, toEnable, toStart, todos) = common(args)
 
     if args.logdir: args.logdir = makeDirectory(args.logdir, args, True) 
     args.serviceDirectory = makeDirectory(args.serviceDirectory, args)
@@ -103,13 +106,19 @@ def install(args:ArgumentParser) -> int:
         logging.info("Nothing needs to be done")
         return 0
 
-    mkSystemctl(args, ("stop",), toStart, False) # Stop all the processes that need stopped
-    mkSystemctl(args, ("disable",), toStart, False) # disable all the services/timers that need stopped
+    if toStart:
+        mkSystemctl(args, ("stop",), toStart, False) # Stop all the processes that need stopped
+    if toEnable: 
+        mkSystemctl(args, ("disable",), toEnable, False) # disable all the services/timers that need stopped
+
     copyFiles(toCopy, args)
     mkSystemctl(args, ("daemon-reload",)) # Force reload of the daemon
-    mkSystemctl(args, ("enable",), todos)
 
-    if toStart: mkSystemctl(args, ("start",), toStart)
+    if toEnable:
+        mkSystemctl(args, ("enable",),toEnable)
+
+    if toStart: 
+        mkSystemctl(args, ("start",), toStart)
 
     if args.user:
         cmd = (args.loginctl, "enable-linger")
@@ -124,7 +133,7 @@ def install(args:ArgumentParser) -> int:
     return 0
 
 def uninstall(args:ArgumentParser) -> int:
-    (services, timers, toStart, todos) = common(args)
+    (services, timers, toEnable, toStart, todos) = common(args)
 
     toDelete = set()
     for fn in todos:
@@ -132,8 +141,8 @@ def uninstall(args:ArgumentParser) -> int:
         if os.path.isfile(ofn): toDelete.add(ofn)
 
     if not toDelete: return 0 # Nothing to be removed
-    mkSystemctl(args, ("stop",), toStart, False)
-    mkSystemctl(args, ("disable",), todos, False)
+    if toStart: mkSystemctl(args, ("stop",), toStart, False)
+    if toEnable: mkSystemctl(args, ("disable",), toEnable, False)
 
     cmd = [args.rm, "-f"] if args.user else [args.sudo, args.rm, "-f"]
     cmd.extend(toDelete)
