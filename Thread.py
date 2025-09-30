@@ -6,9 +6,10 @@
 #
 # June-2021, Pat Welch, pat@mousebrains.com
 
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 import threading
 import queue
+import logging
 #
 # Base class for threading which catches exceptions and sends them to a queue
 #
@@ -21,7 +22,7 @@ class Thread(threading.Thread):
 
     __queue = queue.Queue() # Static variable
 
-    def __init__(self, name:str, args:ArgumentParser=None) -> None:
+    def __init__(self, name: str, args: Namespace | None = None) -> None:
         '''
         name: is the name of the thread saved in self.name and used by logging messages
         args: is saved in self.args
@@ -41,17 +42,19 @@ class Thread(threading.Thread):
         return cls.__queue.empty()
 
     @classmethod
-    def waitForException(cls, timeout=None):
+    def waitForException(cls, timeout: float | None = None) -> None:
         if timeout is None:
             e = cls.__queue.get()
             raise e
-        try:
-            e = cls.__queue.get(timeout=timeout)
-            print(e)
-        except queue.Empty:
-            return
-        except Exception as e:
-            raise e
+        while True:
+            try:
+                e = cls.__queue.get(timeout=timeout)
+                logging.info("Unexpected queue msg %s", e)
+                raise e
+            except queue.Empty:
+                return
+            except Exception:
+                raise
 
 if __name__ == "__main__":
     import Logger
@@ -59,20 +62,20 @@ if __name__ == "__main__":
     import time
 
     class A(Thread):
-        def __init__(self, args:ArgumentParser):
+        def __init__(self, args: Namespace):
             Thread.__init__(self, "A", args)
 
         @staticmethod
-        def addArgs(paresr:ArgumentParser):
+        def addArgs(parser: ArgumentParser):
             parser.add_argument("--dt", type=float, default=1.7,
                     help="Time to wait to throw an exception")
-        def runIt(self):
+        def runIt(self) -> None:
             ''' I'll throw an exception after --dt seconds '''
             dt = self.args.dt
             logging.info("Going to throw an error after %s seconds", dt)
             time.sleep(dt)
             logging.warning("Throwing a NotImplemented exception")
-            raise NotImplemented
+            raise NotImplementedError("Not implemented beyond here.")
 
     parser = ArgumentParser()
     Logger.addArgs(parser)
@@ -85,5 +88,5 @@ if __name__ == "__main__":
     thrd.start()
     try:
         Thread.waitForException()
-    except:
+    except Exception:
         logging.exception("Exception from A")

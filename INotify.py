@@ -4,7 +4,7 @@
 # the notification to a queue
 #
 
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 import pyinotify
 import queue
 import logging
@@ -12,11 +12,12 @@ import time
 import os
 try:
     from .Thread import Thread # As a module
-except:
+except Exception:
     from Thread import Thread # From within module
 
 class INotify(Thread):
-    def __init__(self, args:ArgumentParser, flags:int=None) -> None:
+    """Use INotify to monitor file system updates."""
+    def __init__(self, args: Namespace, flags: int | None = None) -> None:
         Thread.__init__(self, "INotify", args)
         self.__wm = pyinotify.WatchManager()
         self.__notifier = pyinotify.Notifier(self.__wm)
@@ -34,7 +35,7 @@ class INotify(Thread):
             self.__flags|= pyinotify.IN_DELETE_SELF
 
     @staticmethod
-    def __maskname(mask:int) -> str:
+    def __maskname(mask: int) -> str | None:
         # This should be able to use pyinotify.EventsCodes.maskname, but it fails
         items = []
         codes = pyinotify.EventsCodes.FLAG_COLLECTIONS["OP_FLAGS"]
@@ -42,10 +43,10 @@ class INotify(Thread):
             if mask & codes[key]: items.append(key)
         return "|".join(items) if items else None
 
-    def addTree(self, tgt:str) -> None:
+    def addTree(self, tgt: str) -> None:
         self.addWatch(tgt, qRecursive=True, qAutoAdd=True)
 
-    def addWatch(self, tgt:str, mask:int=None, qRecursive:bool=False, qAutoAdd:bool=False) -> bool:
+    def addWatch(self, tgt: str, mask: int | None = None, qRecursive: bool = False, qAutoAdd: bool = False) -> bool:
         tgt = os.path.abspath(os.path.expanduser(tgt))
         if os.path.isdir(tgt):
             mask = mask if mask is not None else self.__flags
@@ -62,7 +63,7 @@ class INotify(Thread):
         self.__notifier.loop() # All the action happens in __eventHandler
         logging.warning("Leaving loop")
 
-    def __eventHandler(self, e:pyinotify.Event) -> None:
+    def __eventHandler(self, e: pyinotify.Event) -> None:
         t0 = time.time() # Time of the event
         fn = e.path if e.dir else os.path.join(e.path, e.name)
         self.queue.put((t0, fn))
@@ -72,7 +73,7 @@ if __name__ == "__main__":
     import Logger
 
     class Reader(Thread):
-        def __init__(self, args:ArgumentParser, q:queue.Queue) -> None:
+        def __init__(self, args: Namespace, q: queue.Queue) -> None:
             Thread.__init__(self, "Reader", args)
             self.__queue = q
 
@@ -98,5 +99,5 @@ if __name__ == "__main__":
 
     try:
         Thread.waitForException()
-    except:
+    except Exception:
         logging.exception("Exception from INotify")

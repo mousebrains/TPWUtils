@@ -4,7 +4,7 @@
 #
 # June-2021, Pat Welch, pat@mousebrains.com
 
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 import logging
 import logging.handlers
 import socket
@@ -14,7 +14,7 @@ import getpass
 #
 # Set up logging to rolling files and/or SMTP
 #
-def addArgs(parser:ArgumentParser) -> None:
+def addArgs(parser: ArgumentParser) -> None:
     ''' Add command line arguments I will use '''
     grp = parser.add_argument_group("Logger Related Options")
     grp.add_argument("--logfile", type=str, metavar="filename", help="Name of logfile")
@@ -34,11 +34,11 @@ def addArgs(parser:ArgumentParser) -> None:
     gg.add_argument("--debug", action="store_true", help="Enable very verbose logging")
     gg.add_argument("--verbose", action="store_true", help="Enable verbose logging")
 
-def mkLogger(args:ArgumentParser, 
-        fmt:str=None,
-        name:str=None,
-        logLevel:str="WARNING",
-        qThreaded:bool=True
+def mkLogger(args: Namespace,
+        fmt: str | None = None,
+        name: str | None = None,
+        logLevel: str = "WARNING",
+        qThreaded: bool = True
         ) -> logging.Logger:
     ''' Construct a logger and return it '''
     logger = logging.getLogger(name) # If name is None, then root logger
@@ -86,7 +86,7 @@ if __name__ == "__main__":
     addArgs(parser)
     args = parser.parse_args()
 
-    mkLogger(args, fmt="%(asctime)s %(levelname)s: %(message)s")
+    mkLogger(args, fmt="%(asctime)s %(levelname)s: %(message)s", qThreaded=False)
     logging.error("Error message")
     logging.warning("Warning message")
     logging.info("Info message")
