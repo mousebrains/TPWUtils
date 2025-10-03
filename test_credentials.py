@@ -4,7 +4,7 @@ import unittest
 import os
 import tempfile
 import yaml
-from Credentials import getCredentials
+from TPWUtils.Credentials import getCredentials
 
 
 class TestCredentials(unittest.TestCase):

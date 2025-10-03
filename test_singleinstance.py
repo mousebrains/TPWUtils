@@ -1,7 +1,7 @@
 """Unit tests for SingleInstance module."""
 
 import unittest
-from SingleInstance import SingleInstance
+from TPWUtils.SingleInstance import SingleInstance
 
 
 class TestSingleInstance(unittest.TestCase):

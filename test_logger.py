@@ -5,7 +5,7 @@ import logging
 import tempfile
 import os
 from argparse import ArgumentParser, Namespace
-from Logger import addArgs, mkLogger
+from TPWUtils.Logger import addArgs, mkLogger
 
 
 class TestLogger(unittest.TestCase):

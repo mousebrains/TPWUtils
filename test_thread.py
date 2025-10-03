@@ -3,7 +3,7 @@
 import unittest
 import time
 from argparse import Namespace
-from Thread import Thread
+from TPWUtils.Thread import Thread
 
 
 class TestThread(unittest.TestCase):

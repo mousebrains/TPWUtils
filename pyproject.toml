@@ -46,7 +46,7 @@ Repository = "https://github.com/mousebrains/TPWUtils"
 Issues = "https://github.com/mousebrains/TPWUtils/issues"
 
 [tool.setuptools]
-py-modules = ["Logger", "Credentials", "Thread", "SingleInstance", "INotify", "GreatCircle", "loadAndExecuteSQL", "install"]
+packages = ["TPWUtils"]
 
 [tool.mypy]
 ignore_missing_imports = true

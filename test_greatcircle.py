@@ -2,7 +2,7 @@
 
 import unittest
 import numpy as np
-from GreatCircle import greatCircle, Units, DistanceDegree, Dist2Lon, Dist2Lat
+from TPWUtils.GreatCircle import greatCircle, Units, DistanceDegree, Dist2Lon, Dist2Lat
 
 
 class TestGreatCircle(unittest.TestCase):

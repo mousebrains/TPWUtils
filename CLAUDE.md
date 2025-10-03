@@ -4,25 +4,45 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-TPWUtils is a collection of reusable Python 3 utilities for common development tasks including logging, threading, file system monitoring, geographic calculations, credential management, and system service installation. Each module is standalone and can be used independently.
+TPWUtils is a collection of reusable Python 3 utilities for common development tasks including logging, threading, file system monitoring, geographic calculations, credential management, and system service installation.
+
+**Package Structure:**
+- All modules are located in the `TPWUtils/` package directory
+- Use `from TPWUtils.Logger import mkLogger` to import modules
+- Test files are in the root directory and import from `TPWUtils.*`
+- Package is installable via pip: `pip install git+https://github.com/mousebrains/TPWUtils.git`
+
+## Installation
+
+Install the package in editable mode for development:
+```bash
+pip install -e .
+pip install -e .[dev]  # Include development dependencies
+```
+
+Install from git repository:
+```bash
+pip install git+https://github.com/mousebrains/TPWUtils.git
+```
 
 ## Testing
 
-Run all tests:
+Run all tests with pytest:
+```bash
+pytest test_*.py -v
+pytest --cov  # With coverage report
+```
+
+Run with unittest:
 ```bash
 python3 -m unittest discover -p "test_*.py" -v
 ```
 
 Run specific test file:
 ```bash
-python3 -m unittest test_thread.py -v
-python3 -m unittest test_greatcircle.py -v
-python3 -m unittest test_logger.py -v
-```
-
-Run specific test:
-```bash
-python3 -m unittest test_thread.TestThread.test_exception_capture -v
+pytest test_thread.py -v
+pytest test_greatcircle.py -v
+pytest test_logger.py -v
 ```
 
 ## Code Architecture
