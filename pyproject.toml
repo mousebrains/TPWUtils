@@ -49,3 +49,19 @@ Issues = "https://github.com/mousebrains/TPWUtils/issues"
 
 [tool.setuptools]
 packages = ["TPWUtils"]
+
+[tool.mypy]
+ignore_missing_imports = true
+explicit_package_bases = true
+# Disable strict optional checking for existing code
+no_implicit_optional = false
+# Allow untyped definitions
+allow_untyped_defs = true
+# Allow variables without type annotations
+allow_untyped_globals = true
+# Don't require annotations for class variables
+disable_error_code = ["var-annotated", "assignment", "arg-type", "union-attr", "attr-defined", "import-untyped"]
+
+[[tool.mypy.overrides]]
+module = ["yaml", "pyinotify", "pandas", "psycopg"]
+ignore_missing_imports = true

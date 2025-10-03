@@ -40,7 +40,8 @@ class INotify(Thread):
         items = []
         codes = pyinotify.EventsCodes.FLAG_COLLECTIONS["OP_FLAGS"]
         for key in codes:
-            if mask & codes[key]: items.append(key)
+            if mask & codes[key]:
+                items.append(key)
         return "|".join(items) if items else None
 
     def addTree(self, tgt: str) -> None:
@@ -95,7 +96,8 @@ if __name__ == "__main__":
     rdr = Reader(args, i.queue)
     i.start()
     rdr.start()
-    for tgt in args.tgt: i.addTree(tgt)
+    for tgt in args.tgt:
+        i.addTree(tgt)
 
     try:
         Thread.waitForException()

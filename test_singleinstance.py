@@ -1,7 +1,6 @@
 """Unit tests for SingleInstance module."""
 
 import unittest
-import sys
 from SingleInstance import SingleInstance
 
 

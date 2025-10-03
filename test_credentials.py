@@ -49,8 +49,9 @@ class TestCredentials(unittest.TestCase):
         # This should prompt for new credentials, but in test we can't provide input
         # So we just verify it doesn't crash and attempts to read the file
         # (The actual prompting would need mocking for full test)
-        with self.assertRaises(EOFError):
+        with self.assertRaises((EOFError, OSError)):
             # Will fail on input() call since stdin is not available in test
+            # Pytest raises OSError, standard unittest may raise EOFError
             getCredentials(cred_file)
 
     def test_file_with_expanded_path(self):

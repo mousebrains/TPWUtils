@@ -55,7 +55,7 @@ class TestThread(unittest.TestCase):
         while not Thread.isQueueEmpty():
             try:
                 Thread.waitForException(timeout=0.1)
-            except:
+            except Exception:
                 pass
 
         t = FailingThread("failing")

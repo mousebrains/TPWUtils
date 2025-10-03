@@ -126,13 +126,13 @@ class DistanceDegree:
 
 class Dist2Lon(DistanceDegree):
     def __init__(self, latRef: float, lonRef: float, re: Units = Units.Meters) -> None:
-        DistanceDegree.__init__(self, 
-                float(greatCircle(lonRef-0.5, latRef, lonRef+0.5, latRef, re)), lonRef)
+        DistanceDegree.__init__(self,
+                float(greatCircle(lonRef-0.5, latRef, lonRef+0.5, latRef, re)[0]), lonRef)
 
 class Dist2Lat(DistanceDegree):
     def __init__(self, latRef: float, lonRef: float, re: Units = Units.Meters) -> None:
-        DistanceDegree.__init__(self, 
-                float(greatCircle(lonRef, latRef-0.5, lonRef, latRef+0.5, re)), latRef)
+        DistanceDegree.__init__(self,
+                float(greatCircle(lonRef, latRef-0.5, lonRef, latRef+0.5, re)[0]), latRef)
 
 if __name__ == "__main__":
     from argparse import ArgumentParser

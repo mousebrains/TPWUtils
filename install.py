@@ -13,12 +13,15 @@ import sys
 
 def makeDirectory(dirname: str, args: Namespace, qUser: bool = False) -> str:
     dirname = os.path.abspath(os.path.expanduser(dirname))
-    if os.path.isdir(dirname): return dirname
+    if os.path.isdir(dirname):
+        return dirname
     cmd = []
-    if not qUser and not args.user: cmd.append(args.sudo)
+    if not qUser and not args.user:
+        cmd.append(args.sudo)
     cmd.extend((args.mkdir, "-p", dirname))
     logging.info("Creating %s", " ".join(cmd))
-    if not args.dryrun: subprocess.run(cmd, shell=False, check=True)
+    if not args.dryrun:
+        subprocess.run(cmd, shell=False, check=True)
     return dirname
 
 def stripComments(fn: str) -> str:
@@ -29,7 +32,8 @@ def stripComments(fn: str) -> str:
             if index >= 0:
                 line = line[:index]
             line = line.strip()
-            if line: lines.append(line)
+            if line:
+                lines.append(line)
     return "\n".join(lines)
 
 def needsToBeCopied(src: str, args: Namespace) -> str | None:
@@ -39,12 +43,14 @@ def needsToBeCopied(src: str, args: Namespace) -> str | None:
     if not args.force and os.path.isfile(tgt):
         sContent = stripComments(src)
         tContent = stripComments(tgt)
-        if sContent == tContent: return None
+        if sContent == tContent:
+            return None
     return tgt
 
 def copyFiles(items: set, args: Namespace) -> None:
     cmd = []
-    if not args.user: cmd.append(args.sudo)
+    if not args.user:
+        cmd.append(args.sudo)
     cmd.append(args.cp)
     for item in items:
         a = list(cmd)
@@ -55,8 +61,10 @@ def copyFiles(items: set, args: Namespace) -> None:
 
 def mkSystemctl(args: Namespace, options: list | None = None, extras: set | None = None, chk: bool = True) -> None:
     cmd = [args.systemctl, "--user"] if args.user else [args.sudo, args.systemctl]
-    if options: cmd.extend(options)
-    if extras: cmd.extend(extras)
+    if options:
+        cmd.extend(options)
+    if extras:
+        cmd.extend(extras)
     logging.info("%s", " ".join(cmd))
     if not args.dryrun:
         subprocess.run(cmd, shell=False, check=chk)
@@ -94,13 +102,15 @@ def common(args: Namespace) -> tuple[set | None, set | None, set | None, set | N
 def install(args: Namespace) -> int:
     (services, timers, toEnable, toStart, allNames) = common(args)
 
-    if args.logdir: args.logdir = makeDirectory(args.logdir, args, True)
+    if args.logdir:
+        args.logdir = makeDirectory(args.logdir, args, True)
     args.serviceDirectory = makeDirectory(args.serviceDirectory, args)
 
     toCopy = set() # Files that need to be copied
     for fn in services.union(timers): # Copy services and timers as needed
         tgt = needsToBeCopied(fn, args)
-        if tgt: toCopy.add((fn, tgt))
+        if tgt:
+            toCopy.add((fn, tgt))
 
     if not toCopy:
         logging.info("Nothing needs to be done")
@@ -123,7 +133,8 @@ def install(args: Namespace) -> int:
     if args.user:
         cmd = (args.loginctl, "enable-linger")
         logging.info("Enable Linger %s", " ".join(cmd))
-        if not args.dryrun: subprocess.run(cmd, shell=False, check=True)
+        if not args.dryrun:
+            subprocess.run(cmd, shell=False, check=True)
 
     mkSystemctl(args, ("--no-pager", "status"), allNames, False)
 
@@ -138,11 +149,15 @@ def uninstall(args: Namespace) -> int:
     toDelete = set()
     for fn in allNames:
         ofn = os.path.join(args.serviceDirectory, os.path.basename(fn))
-        if os.path.isfile(ofn): toDelete.add(ofn)
+        if os.path.isfile(ofn):
+            toDelete.add(ofn)
 
-    if not toDelete: return 0 # Nothing to be removed
-    if toStart: mkSystemctl(args, ("stop",), toStart, False)
-    if toEnable: mkSystemctl(args, ("disable",), toEnable, False)
+    if not toDelete:
+        return 0 # Nothing to be removed
+    if toStart:
+        mkSystemctl(args, ("stop",), toStart, False)
+    if toEnable:
+        mkSystemctl(args, ("disable",), toEnable, False)
 
     cmd = [args.rm, "-f"] if args.user else [args.sudo, args.rm, "-f"]
     cmd.extend(toDelete)

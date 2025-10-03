@@ -17,10 +17,12 @@ def loadAndExecuteSQL(db, fn: str, tableName: str | None = None) -> bool:
             cur.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_name=%s;",
                         (tableName,))
             for row in cur:
-                if row[0] > 0: return True # Already exists
+                if row[0] > 0:
+                    return True # Already exists
                 break
 
-        with open(fn, "r") as fp: body = fp.read()
+        with open(fn, "r") as fp:
+            body = fp.read()
         logging.info("Loaded %s, %s bytes", fn, len(body))
 
         cur.execute("BEGIN TRANSACTION;")
