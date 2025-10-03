@@ -8,14 +8,14 @@ version = "0.1.0"
 description = "A collection of Python 3 utilities"
 readme = "README.md"
 requires-python = ">=3.9"
-license = {text = "GPL-3.0-or-later"}
+license = "GPL-3.0-or-later"
 authors = [
     {name = "Pat Welch", email = "pat@mousebrains.com"}
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "License :: GPL-3.0-or-later",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
