@@ -5,21 +5,27 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "TPWUtils"
 version = "0.2.0"
-description = "A collection of Python 3 utilities"
+description = "A collection of Python 3 utilities for logging, threading, file monitoring, and geographic calculations"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "GPL-3.0-or-later"
 authors = [
     {name = "Pat Welch", email = "pat@mousebrains.com"}
 ]
+keywords = ["logging", "threading", "inotify", "great-circle", "credentials", "systemd"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3 :: Only",
     "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Logging",
+    "Topic :: System :: Monitoring",
 ]
 dependencies = [
     "numpy",
