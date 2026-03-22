@@ -1,6 +1,7 @@
 """Unit tests for Thread module."""
 
 import unittest
+import queue
 import time
 from argparse import Namespace
 from TPWUtils.Thread import Thread
@@ -8,6 +9,15 @@ from TPWUtils.Thread import Thread
 
 class TestThread(unittest.TestCase):
     """Test the Thread class."""
+
+    def setUp(self):
+        """Drain the shared exception queue before each test."""
+        while True:
+            try:
+                Thread.waitForException(timeout=0.01)
+                break  # Returned normally = queue is empty
+            except Exception:
+                pass  # Discarded a stale exception, keep draining
 
     def test_thread_initialization(self):
         """Test thread can be initialized."""
@@ -36,8 +46,6 @@ class TestThread(unittest.TestCase):
             def runIt(self):
                 raise ValueError("Test error")
 
-        Thread.isQueueEmpty()  # Clear any existing exceptions
-
         t = FailingThread("failing")
         t.start()
         t.join()
@@ -50,13 +58,6 @@ class TestThread(unittest.TestCase):
         class FailingThread(Thread):
             def runIt(self):
                 raise ValueError("Test exception")
-
-        # Clear queue first
-        while not Thread.isQueueEmpty():
-            try:
-                Thread.waitForException(timeout=0.1)
-            except Exception:
-                pass
 
         t = FailingThread("failing")
         t.start()
@@ -82,6 +83,38 @@ class TestThread(unittest.TestCase):
         t.start()
         t.join()
         self.assertTrue(t.completed)
+
+
+    def test_scoped_exception_queue(self):
+        """Test that threads can use a scoped exception queue."""
+        scoped_q = queue.Queue()
+
+        class ScopedThread(Thread):
+            def runIt(self):
+                raise RuntimeError("scoped error")
+
+        t = ScopedThread("scoped", excQueue=scoped_q)
+        t.start()
+        t.join()
+
+        # Scoped queue should have the exception
+        self.assertFalse(scoped_q.empty())
+        # Default queue should still be empty (after setUp drained it)
+        self.assertTrue(Thread.isQueueEmpty())
+
+    def test_wait_on_scoped_queue(self):
+        """Test waitForException with a scoped queue."""
+        scoped_q = queue.Queue()
+
+        class ScopedThread(Thread):
+            def runIt(self):
+                raise ValueError("scoped exception")
+
+        t = ScopedThread("scoped", excQueue=scoped_q)
+        t.start()
+
+        with self.assertRaises(ValueError):
+            Thread.waitForException(timeout=2.0, excQueue=scoped_q)
 
 
 if __name__ == '__main__':

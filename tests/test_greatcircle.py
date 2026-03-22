@@ -72,6 +72,57 @@ class TestDistanceDegree(unittest.TestCase):
         self.assertEqual(str(dd), "111000.0 m/deg")
 
 
+class TestGreatCircleEdgeCases(unittest.TestCase):
+    """Test edge cases for the greatCircle function."""
+
+    def test_antipodal_points(self):
+        """Distance between antipodal points (hardest case for Vincenty)."""
+        dist = greatCircle(0.0, 0.0, 180.0, 0.0)
+        self.assertGreater(dist[0], 0)
+        # Should be roughly half the Earth's circumference
+        self.assertAlmostEqual(dist[0], 20015087, delta=200000)
+
+    def test_pole_to_pole(self):
+        """Distance from North Pole to South Pole."""
+        dist = greatCircle(0.0, 90.0, 0.0, -90.0)
+        self.assertGreater(dist[0], 0)
+        # Roughly half circumference through the poles (~20004 km)
+        self.assertAlmostEqual(dist[0], 20003931, delta=100000)
+
+    def test_date_line_crossing(self):
+        """Distance across the International Date Line."""
+        dist = greatCircle(179.0, 0.0, -179.0, 0.0)
+        # Should be about 2 degrees on equator ~ 222 km
+        self.assertAlmostEqual(dist[0], 222389, delta=5000)
+
+    def test_very_short_distance(self):
+        """Very short distance between nearby points."""
+        dist = greatCircle(0.0, 0.0, 0.001, 0.0)
+        # About 111 meters
+        self.assertGreater(dist[0], 100)
+        self.assertLess(dist[0], 120)
+
+    def test_negative_coordinates(self):
+        """Test with negative lat/lon."""
+        dist = greatCircle(-10.0, -20.0, -11.0, -21.0)
+        self.assertGreater(dist[0], 0)
+
+    def test_near_antipodal_convergence(self):
+        """Near-antipodal points should still produce a result."""
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            dist = greatCircle(0.0, 0.5, 179.9, -0.5)
+        self.assertGreater(dist[0], 0)
+
+    def test_multiple_same_points(self):
+        """Array of identical point pairs should all return zero."""
+        lons = np.array([10.0, 20.0, 30.0])
+        lats = np.array([40.0, 50.0, 60.0])
+        dist = greatCircle(lons, lats, lons, lats)
+        np.testing.assert_array_equal(dist, np.zeros(3))
+
+
 class TestDist2Lon(unittest.TestCase):
     """Test the Dist2Lon class."""
 

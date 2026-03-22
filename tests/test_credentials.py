@@ -2,8 +2,10 @@
 
 import unittest
 import os
+import stat
 import tempfile
 import yaml
+from unittest.mock import patch
 from TPWUtils.Credentials import getCredentials
 
 
@@ -23,7 +25,6 @@ class TestCredentials(unittest.TestCase):
         """Test loading credentials from an existing file."""
         cred_file = os.path.join(self.test_dir, "test_creds.yaml")
 
-        # Create a test credentials file
         test_creds = {
             "username": "testuser",
             "password": "testpass"
@@ -31,14 +32,13 @@ class TestCredentials(unittest.TestCase):
         with open(cred_file, "w") as f:
             yaml.dump(test_creds, f)
 
-        # Load credentials
         username, password = getCredentials(cred_file)
 
         self.assertEqual(username, "testuser")
         self.assertEqual(password, "testpass")
 
-    def test_malformed_credentials_file(self):
-        """Test handling of malformed credentials file."""
+    def test_malformed_file_prompts_user(self):
+        """Test that malformed credentials file prompts for new credentials."""
         cred_file = os.path.join(self.test_dir, "bad_creds.yaml")
 
         # Create a file with missing password
@@ -46,17 +46,42 @@ class TestCredentials(unittest.TestCase):
         with open(cred_file, "w") as f:
             yaml.dump(test_creds, f)
 
-        # This should prompt for new credentials, but in test we can't provide input
-        # So we just verify it doesn't crash and attempts to read the file
-        # (The actual prompting would need mocking for full test)
-        with self.assertRaises((EOFError, OSError)):
-            # Will fail on input() call since stdin is not available in test
-            # Pytest raises OSError, standard unittest may raise EOFError
+        with patch("builtins.input", return_value="newuser"), \
+             patch("getpass.getpass", return_value="newpass"):
+            username, password = getCredentials(cred_file)
+
+        self.assertEqual(username, "newuser")
+        self.assertEqual(password, "newpass")
+
+    def test_missing_file_prompts_user(self):
+        """Test that missing file prompts for credentials and creates file."""
+        cred_file = os.path.join(self.test_dir, "subdir", "new_creds.yaml")
+
+        with patch("builtins.input", return_value="mockuser"), \
+             patch("getpass.getpass", return_value="mockpass"):
+            username, password = getCredentials(cred_file)
+
+        self.assertEqual(username, "mockuser")
+        self.assertEqual(password, "mockpass")
+        self.assertTrue(os.path.isfile(cred_file))
+
+    def test_credentials_file_permissions(self):
+        """Test that newly created credential files have restricted permissions."""
+        cred_file = os.path.join(self.test_dir, "secure_creds.yaml")
+
+        with patch("builtins.input", return_value="user"), \
+             patch("getpass.getpass", return_value="pass"):
             getCredentials(cred_file)
+
+        mode = os.stat(cred_file).st_mode
+        # Should not be readable by group or others
+        self.assertFalse(mode & stat.S_IRGRP)
+        self.assertFalse(mode & stat.S_IROTH)
+        self.assertFalse(mode & stat.S_IWGRP)
+        self.assertFalse(mode & stat.S_IWOTH)
 
     def test_file_with_expanded_path(self):
         """Test that file paths are properly expanded."""
-        # Create credentials in temp dir
         cred_file = os.path.join(self.test_dir, "creds.yaml")
         test_creds = {
             "username": "testuser",
@@ -65,10 +90,9 @@ class TestCredentials(unittest.TestCase):
         with open(cred_file, "w") as f:
             yaml.dump(test_creds, f)
 
-        # Load with absolute path
         username, password = getCredentials(cred_file)
         self.assertEqual(username, "testuser")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -1,81 +1,81 @@
 #! /usr/bin/env python3
 #
-# Use pyinotify to handle file notification and send
+# Use watchdog to handle file system notification and send
 # the notification to a queue
+#
+# Originally used pyinotify (Linux-only, unmaintained since 2015).
+# Migrated to watchdog for cross-platform support.
 #
 
 from argparse import ArgumentParser, Namespace
-import pyinotify
+from pathlib import Path
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler, FileSystemEvent
 import queue
 import logging
 import time
-import os
 try:
     from .Thread import Thread # As a module
-except Exception:
-    from Thread import Thread # From within module
+except ImportError:
+    from Thread import Thread  # type: ignore[no-redef]
+
+
+class _QueueHandler(FileSystemEventHandler):
+    """Push file system events onto a queue as (timestamp, path) tuples."""
+
+    def __init__(self, q: queue.Queue[tuple[float, str]]) -> None:
+        super().__init__()
+        self.__queue = q
+
+    def on_any_event(self, event: FileSystemEvent) -> None:
+        t0 = time.time()
+        fn = str(event.src_path)
+        self.__queue.put((t0, fn))
+        logging.debug("Event %s, %s", fn, event.event_type)
+
 
 class INotify(Thread):
-    """Use INotify to monitor file system updates."""
-    def __init__(self, args: Namespace, flags: int | None = None) -> None:
-        Thread.__init__(self, "INotify", args)
-        self.__wm = pyinotify.WatchManager()
-        self.__notifier = pyinotify.Notifier(self.__wm)
-        self.queue = queue.Queue()
-        if flags is not None:
-            self.__flags = flags
-        else:
-            self.__flags = pyinotify.IN_CREATE 
-            self.__flags|= pyinotify.IN_MODIFY 
-            self.__flags|= pyinotify.IN_CLOSE_WRITE 
-            self.__flags|= pyinotify.IN_MOVED_TO 
-            self.__flags|= pyinotify.IN_MOVED_FROM
-            self.__flags|= pyinotify.IN_MOVE_SELF
-            self.__flags|= pyinotify.IN_DELETE
-            self.__flags|= pyinotify.IN_DELETE_SELF
+    """Use watchdog to monitor file system updates."""
 
-    @staticmethod
-    def __maskname(mask: int) -> str | None:
-        # This should be able to use pyinotify.EventsCodes.maskname, but it fails
-        items = []
-        codes = pyinotify.EventsCodes.FLAG_COLLECTIONS["OP_FLAGS"]
-        for key in codes:
-            if mask & codes[key]:
-                items.append(key)
-        return "|".join(items) if items else None
+    def __init__(self, args: Namespace, flags: int | None = None) -> None:
+        super().__init__("INotify", args)
+        self.__observer = Observer()
+        self.queue: queue.Queue[tuple[float, str]] = queue.Queue()
+        self.__handler = _QueueHandler(self.queue)
 
     def addTree(self, tgt: str) -> None:
-        self.addWatch(tgt, qRecursive=True, qAutoAdd=True)
+        self.addWatch(tgt, qRecursive=True)
 
-    def addWatch(self, tgt: str, mask: int | None = None, qRecursive: bool = False, qAutoAdd: bool = False) -> bool:
-        tgt = os.path.abspath(os.path.expanduser(tgt))
-        if os.path.isdir(tgt):
-            mask = mask if mask is not None else self.__flags
-            self.__wm.add_watch(path=tgt, mask=mask, proc_fun=self.__eventHandler, 
-                    rec=qRecursive, auto_add=qAutoAdd)
-            logging.info("Added watch for %s, rec %s auto %s msk %s",
-                    tgt, qRecursive, qAutoAdd, self.__maskname(mask))
+    def addWatch(self, tgt: str, mask: int | None = None,
+                 qRecursive: bool = False, qAutoAdd: bool = False) -> bool:
+        path = Path(tgt).expanduser().resolve()
+        if path.is_dir():
+            self.__observer.schedule(self.__handler, str(path), recursive=qRecursive)
+            logging.info("Added watch for %s, recursive=%s", path, qRecursive)
             return True
-        logging.error("Path %s does not exist", tgt)
+        logging.error("Path %s does not exist", path)
         return False
 
-    def runIt(self) -> None: # Called on thread start
-        logging.info("Starting loop")
-        self.__notifier.loop() # All the action happens in __eventHandler
-        logging.warning("Leaving loop")
-
-    def __eventHandler(self, e: pyinotify.Event) -> None:
-        t0 = time.time() # Time of the event
-        fn = e.path if e.dir else os.path.join(e.path, e.name)
-        self.queue.put((t0, fn))
-        logging.debug("Event %s, %s", fn, e.maskname)
+    def runIt(self) -> None:
+        logging.info("Starting observer")
+        self.__observer.start()
+        try:
+            while self.__observer.is_alive():
+                self.__observer.join(1)
+        finally:
+            self.__observer.stop()
+            self.__observer.join()
+        logging.warning("Observer stopped")
 
 if __name__ == "__main__":
-    import Logger
+    try:
+        from TPWUtils import Logger
+    except ImportError:
+        import Logger  # type: ignore[no-redef]
 
     class Reader(Thread):
         def __init__(self, args: Namespace, q: queue.Queue) -> None:
-            Thread.__init__(self, "Reader", args)
+            super().__init__("Reader", args)
             self.__queue = q
 
         def runIt(self) -> None:

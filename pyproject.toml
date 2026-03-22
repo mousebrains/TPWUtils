@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "TPWUtils"
-version = "0.2.0"
+version = "0.3.0"
 description = "A collection of Python 3 utilities for logging, threading, file monitoring, and geographic calculations"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -22,6 +22,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3 :: Only",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: System :: Logging",
@@ -29,7 +30,7 @@ classifiers = [
 ]
 dependencies = [
     "numpy",
-    "pyinotify; sys_platform == 'linux'",
+    "watchdog",
     "pyyaml",
 ]
 
@@ -60,17 +61,13 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
 [tool.mypy]
 ignore_missing_imports = true
 explicit_package_bases = true
-# Disable strict optional checking for existing code
-no_implicit_optional = false
-# Allow untyped definitions
-allow_untyped_defs = true
-# Allow variables without type annotations
-allow_untyped_globals = true
-# Don't require annotations for class variables
-disable_error_code = ["var-annotated", "assignment", "arg-type", "union-attr", "attr-defined", "import-untyped"]
 
 [[tool.mypy.overrides]]
 module = ["yaml", "pyinotify", "pandas", "psycopg"]

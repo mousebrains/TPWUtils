@@ -6,64 +6,65 @@
 
 import socket
 import logging
-import os
+from pathlib import Path
 import sys
 import platform
 import tempfile
 
 class SingleInstance: # Must be used with with statement
     def __init__(self, key: str | None = None) -> None:
-        self.__key = os.path.abspath(os.path.expanduser(sys.argv[0])) if key is None else key
-        self.__socket_path = None
+        self.__key: str = str(Path(sys.argv[0]).resolve()) if key is None else key
+        self.__socket_path: str | None = None
+        self.__socket: socket.socket | None = None
 
     def __enter__(self) -> "SingleInstance":
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         try:
-            s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-
-            # Linux supports abstract sockets (prefixed with \0)
-            # macOS requires a real file path
             if platform.system() == "Linux":
                 socket_name = '\0' + self.__key  # Abstract socket
             else:
-                # Create a socket file in temp directory for macOS/other systems
-                self.__socket_path = os.path.join(
-                    tempfile.gettempdir(),
-                    f".singleinstance_{os.path.basename(self.__key)}"
+                self.__socket_path = str(
+                    Path(tempfile.gettempdir()) / f".singleinstance_{Path(self.__key).name}"
                 )
-                # Check if socket is already in use by trying to connect
-                if os.path.exists(self.__socket_path):
-                    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as test_sock:
-                        try:
-                            test_sock.connect(self.__socket_path)
-                            # If connect succeeds, another instance is running
-                            raise OSError("Socket already in use")
-                        except (ConnectionRefusedError, FileNotFoundError):
-                            # Socket file exists but not in use (stale), remove it
-                            try:
-                                os.unlink(self.__socket_path)
-                            except OSError:
-                                pass
                 socket_name = self.__socket_path
 
-            s.bind(socket_name)
-            s.listen(1)  # Start listening to make socket "in use"
+            try:
+                s.bind(socket_name)
+            except OSError:
+                if self.__socket_path is None:
+                    raise  # Linux abstract sockets can't be stale
+                # macOS/other: check if existing socket is active or stale
+                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as test_sock:
+                    try:
+                        test_sock.connect(socket_name)
+                        raise OSError(f"Socket {socket_name} is actively in use")
+                    except ConnectionRefusedError:
+                        Path(socket_name).unlink()
+                        s.bind(socket_name)
+
+            s.listen(1)
             self.__socket = s
             return self
-        except Exception:
-            logging.exception("Unable to connect to %s", self.__key)
+        except Exception as e:
+            s.close()
+            logging.exception("Unable to bind to %s", self.__key)
             self.__socket = None
-            raise RuntimeError(f"Another instance is already running with key: {self.__key}")
+            raise RuntimeError(
+                f"Another instance is already running with key: {self.__key}"
+            ) from e
 
     def __exit__(self, excType, excValue, excTraceback) -> None:
         if self.__socket is not None:
             self.__socket.close()
         self.__socket = None
         # Clean up socket file on macOS
-        if self.__socket_path and os.path.exists(self.__socket_path):
-            try:
-                os.unlink(self.__socket_path)
-            except OSError:
-                pass
+        if self.__socket_path:
+            sock_path = Path(self.__socket_path)
+            if sock_path.exists():
+                try:
+                    sock_path.unlink()
+                except OSError:
+                    pass
 
 if __name__ == "__main__":
     from argparse import ArgumentParser

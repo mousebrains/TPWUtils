@@ -10,7 +10,6 @@ import logging.handlers
 import socket
 import getpass
 
-# This is from MyLogger.py
 #
 # Set up logging to rolling files and/or SMTP
 #
@@ -37,7 +36,7 @@ def addArgs(parser: ArgumentParser) -> None:
 def mkLogger(args: Namespace,
         fmt: str | None = None,
         name: str | None = None,
-        logLevel: str = "WARNING",
+        logLevel: int | str = "WARNING",
         qThreaded: bool = True
         ) -> logging.Logger:
     ''' Construct a logger and return it '''
@@ -50,6 +49,7 @@ def mkLogger(args: Namespace,
         else:
             fmt = "%(asctime)s %(levelname)s: %(message)s"
 
+    ch: logging.Handler
     if args.logfile:
         ch = logging.handlers.RotatingFileHandler(args.logfile,
                 maxBytes=args.logBytes,
@@ -75,7 +75,7 @@ def mkLogger(args: Namespace,
         subj = args.mailSubject if args.mailSubject is not None else \
                 ("Error on " + socket.getfqdn())
 
-        ch = logging.handlers.SMTPHandler(args.smtpHost, frm, args.mailTo, subj)
+        ch = logging.handlers.SMTPHandler(args.smtpHost, frm, args.mailTo, subj)  # type: ignore[assignment]
         ch.setLevel(logging.ERROR)
         ch.setFormatter(formatter)
         logger.addHandler(ch)

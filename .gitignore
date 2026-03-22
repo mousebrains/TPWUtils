@@ -19,3 +19,6 @@ htmlcov/
 # Type checking and linting
 .mypy_cache/
 .ruff_cache/
+
+# Binary data files
+distance.sample.nc

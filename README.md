@@ -2,7 +2,7 @@
 
 - `Logger.py` set up a logger which supports console, rolling file, and/or SMTP logging methods
   - `addArgs(parser:argparse.ArgumentParser)` adds command line arguments for setting up logging
-  - `mkLogger(args:argparse.ArgumentParser, fmt:str, name:str)` uses the args to setup the logger
+  - `mkLogger(args:argparse.Namespace, fmt:str, name:str)` uses the args to setup the logger
     - *fmt* is the logging message format, by default "%(asctime)s %(threadName)s %(levelname)s: %(message)s"
     - *name* is the logger to setup
 
@@ -23,8 +23,8 @@
 
 - `install.py` installs and manages systemd services and timers for both user and system contexts
   - `addArgs(parser:ArgumentParser)` adds command line arguments for service installation
-  - `install(args:ArgumentParser)` installs services and timers
-  - `uninstall(args:ArgumentParser)` removes services and timers
+  - `install(args:Namespace)` installs services and timers
+  - `uninstall(args:Namespace)` removes services and timers
 
 ## License
 

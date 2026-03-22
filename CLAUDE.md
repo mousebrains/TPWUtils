@@ -9,7 +9,7 @@ TPWUtils is a collection of reusable Python 3 utilities for common development t
 **Package Structure:**
 - All modules are located in the `TPWUtils/` package directory
 - Use `from TPWUtils.Logger import mkLogger` to import modules
-- Test files are in the root directory and import from `TPWUtils.*`
+- Test files are in the `tests/` subdirectory and import from `TPWUtils.*`
 - Package is installable via pip: `pip install git+https://github.com/mousebrains/TPWUtils.git`
 
 ## Installation
@@ -29,32 +29,33 @@ pip install git+https://github.com/mousebrains/TPWUtils.git
 
 Run all tests with pytest:
 ```bash
-pytest test_*.py -v
+pytest tests/ -v
 pytest --cov  # With coverage report
 ```
 
 Run with unittest:
 ```bash
-python3 -m unittest discover -p "test_*.py" -v
+python3 -m unittest discover -s tests -p "test_*.py" -v
 ```
 
 Run specific test file:
 ```bash
-pytest test_thread.py -v
-pytest test_greatcircle.py -v
-pytest test_logger.py -v
+pytest tests/test_thread.py -v
+pytest tests/test_greatcircle.py -v
+pytest tests/test_logger.py -v
 ```
 
 ## Code Architecture
 
 ### Thread Exception Handling Pattern
 
-The `Thread.py` module implements a thread exception propagation pattern using a static queue:
+The `Thread.py` module implements a thread exception propagation pattern:
 
-- Threads inherit from `Thread` and implement `runIt()` instead of `run()`
-- Exceptions raised in any thread are captured and pushed to `Thread.__queue`
+- Threads inherit from `Thread` (abstract base class) and implement `runIt()` instead of `run()`
+- Exceptions raised in any thread are captured with their tracebacks and pushed to a queue
+- By default, all threads share a class-level queue; pass `excQueue` to `__init__` for scoped exception handling
 - Main thread calls `Thread.waitForException(timeout)` to wait for any thread failure
-- The exception is re-raised in the main thread, preserving the original exception type
+- The exception is re-raised in the main thread, preserving the original exception type and traceback
 
 All threads using this pattern should be created as daemon threads.
 
@@ -64,8 +65,8 @@ The `Logger.py` module uses a builder pattern:
 
 1. Call `Logger.addArgs(parser)` to add logging arguments to ArgumentParser
 2. Parse arguments to get a Namespace object
-3. Call `Logger.mkLogger(args, fmt=None, name=None, qThreaded=False)` to configure logging
-   - `qThreaded=True` includes thread names in log format
+3. Call `Logger.mkLogger(args, fmt=None, name=None, qThreaded=True)` to configure logging
+   - `qThreaded=True` (the default) includes thread names in log format
    - Returns a configured logger instance
 
 ### Platform-Specific Socket Handling

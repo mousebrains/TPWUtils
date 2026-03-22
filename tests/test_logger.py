@@ -87,7 +87,7 @@ class TestLogger(unittest.TestCase):
             smtpHost="localhost"
         )
 
-        logger = mkLogger(args)
+        logger = mkLogger(args, name="test_debug")
         self.assertEqual(logger.level, logging.DEBUG)
 
     def test_mkLogger_verbose_level(self):
@@ -104,7 +104,7 @@ class TestLogger(unittest.TestCase):
             smtpHost="localhost"
         )
 
-        logger = mkLogger(args)
+        logger = mkLogger(args, name="test_verbose")
         self.assertEqual(logger.level, logging.INFO)
 
     def test_mkLogger_threaded_format(self):
@@ -121,7 +121,7 @@ class TestLogger(unittest.TestCase):
             smtpHost="localhost"
         )
 
-        logger = mkLogger(args, qThreaded=True)
+        logger = mkLogger(args, name="test_threaded", qThreaded=True)
         # Check that handlers exist
         self.assertGreater(len(logger.handlers), 0)
 
@@ -139,7 +139,7 @@ class TestLogger(unittest.TestCase):
             smtpHost="localhost"
         )
 
-        logger = mkLogger(args, qThreaded=False)
+        logger = mkLogger(args, name="test_non_threaded", qThreaded=False)
         self.assertGreater(len(logger.handlers), 0)
 
 

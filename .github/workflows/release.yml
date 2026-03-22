@@ -38,11 +38,4 @@ jobs:
         draft: false
         prerelease: false
 
-    - name: Publish to PyPI
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-      run: |
-        twine upload dist/*
-      # Only publish if PYPI_API_TOKEN secret is set
-      if: env.TWINE_PASSWORD != ''
+    # PyPI publishing is handled by publish.yml to avoid duplicate uploads

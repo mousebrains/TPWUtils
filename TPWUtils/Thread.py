@@ -7,57 +7,71 @@
 # June-2021, Pat Welch, pat@mousebrains.com
 
 from argparse import ArgumentParser, Namespace
+from abc import ABC, abstractmethod
 import threading
 import queue
 import logging
+import types
 #
 # Base class for threading which catches exceptions and sends them to a queue
 #
-class Thread(threading.Thread):
+class Thread(threading.Thread, ABC):
     '''
     A thread super class that handles exceptions from the actual thread.
     The actual thread run method is called runIt.
     Otherwise the actual thread behaves like a "normal" thread
     '''
 
-    __queue = queue.Queue() # Static variable
+    __defaultQueue: queue.Queue[tuple[Exception, types.TracebackType | None]] = queue.Queue()
 
-    def __init__(self, name: str, args: Namespace | None = None) -> None:
+    def __init__(self, name: str, args: Namespace | None = None,
+                 excQueue: queue.Queue | None = None) -> None:
         '''
         name: is the name of the thread saved in self.name and used by logging messages
         args: is saved in self.args
+        excQueue: optional exception queue for scoped exception handling;
+                  if None, uses the shared class-level default queue
         '''
-        threading.Thread.__init__(self, daemon=True)
+        super().__init__(daemon=True)
         self.name = name
         self.args = args
+        self._excQueue = excQueue if excQueue is not None else Thread.__defaultQueue
+
+    @abstractmethod
+    def runIt(self) -> None:
+        """Override this method with the thread's main logic."""
+        ...
 
     def run(self) -> None: # Called on thread start
         try:
             self.runIt() # Call the actual class's run function inside a try stanza
         except Exception as e:
-            self.__queue.put(e)
+            self._excQueue.put((e, e.__traceback__))
 
     @classmethod
-    def isQueueEmpty(cls) -> bool: 
-        return cls.__queue.empty()
+    def isQueueEmpty(cls, excQueue: queue.Queue | None = None) -> bool:
+        q = excQueue if excQueue is not None else cls.__defaultQueue
+        return q.empty()
 
     @classmethod
-    def waitForException(cls, timeout: float | None = None) -> None:
+    def waitForException(cls, timeout: float | None = None,
+                         excQueue: queue.Queue | None = None) -> None:
+        q = excQueue if excQueue is not None else cls.__defaultQueue
         if timeout is None:
-            e = cls.__queue.get()
-            raise e
+            e, tb = q.get()
+            raise e.with_traceback(tb)
         while True:
             try:
-                e = cls.__queue.get(timeout=timeout)
-                logging.info("Unexpected queue msg %s", e)
-                raise e
+                e, tb = q.get(timeout=timeout)
+                raise e.with_traceback(tb)
             except queue.Empty:
                 return
-            except Exception:
-                raise
 
 if __name__ == "__main__":
-    import Logger
+    try:
+        from TPWUtils import Logger
+    except ImportError:
+        import Logger  # type: ignore[no-redef]
     import logging
     import time
 
@@ -71,7 +85,7 @@ if __name__ == "__main__":
                     help="Time to wait to throw an exception")
         def runIt(self) -> None:
             ''' I'll throw an exception after --dt seconds '''
-            dt = self.args.dt
+            dt = self.args.dt  # type: ignore[union-attr]
             logging.info("Going to throw an error after %s seconds", dt)
             time.sleep(dt)
             logging.warning("Throwing a NotImplemented exception")

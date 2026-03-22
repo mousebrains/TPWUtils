@@ -8,35 +8,43 @@
 # April-2023, Pat Welch, pat@mousebrains.com
 
 import logging
+from pathlib import Path
+from typing import Any
 
-def loadAndExecuteSQL(db, fn: str, tableName: str | None = None) -> bool:
+def loadAndExecuteSQL(db: Any, fn: str, tableName: str | None = None) -> bool:
     try:
         cur = db.cursor()
+        try:
+            if tableName is not None: # Check if this table already exists
+                cur.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_name=%s;",
+                            (tableName,))
+                for row in cur:
+                    if row[0] > 0:
+                        return True # Already exists
+                    break
 
-        if tableName is not None: # Check if this table already exists
-            cur.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_name=%s;",
-                        (tableName,))
-            for row in cur:
-                if row[0] > 0:
-                    return True # Already exists
-                break
+            body = Path(fn).read_text()
+            logging.info("Loaded %s, %s bytes", fn, len(body))
 
-        with open(fn, "r") as fp:
-            body = fp.read()
-        logging.info("Loaded %s, %s bytes", fn, len(body))
-
-        cur.execute("BEGIN TRANSACTION;")
-        cur.execute(body)
-        db.commit()
-        return True
+            cur.execute(body)
+            db.commit()
+            return True
+        finally:
+            cur.close()
     except Exception:
         logging.exception("Unable to execute %s", fn)
-        db.rollback()
+        try:
+            db.rollback()
+        except Exception:
+            logging.exception("Rollback also failed for %s", fn)
         return False
 
 if __name__ == "__main__":
     from argparse import ArgumentParser
-    import Logger
+    try:
+        from TPWUtils import Logger
+    except ImportError:
+        import Logger  # type: ignore[no-redef]
     import psycopg
 
     parser = ArgumentParser()

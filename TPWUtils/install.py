@@ -6,46 +6,50 @@
 # June-2023, Pat Welch, pat@mousebrains.com updated for both root and user
 
 from argparse import ArgumentParser, Namespace
+from collections.abc import Iterable
+from pathlib import Path
 import logging
 import subprocess
-import os
 import sys
 
 def makeDirectory(dirname: str, args: Namespace, qUser: bool = False) -> str:
-    dirname = os.path.abspath(os.path.expanduser(dirname))
-    if os.path.isdir(dirname):
-        return dirname
+    dir_path = Path(dirname).expanduser().resolve()
+    if dir_path.is_dir():
+        return str(dir_path)
     cmd = []
     if not qUser and not args.user:
         cmd.append(args.sudo)
-    cmd.extend((args.mkdir, "-p", dirname))
+    cmd.extend((args.mkdir, "-p", str(dir_path)))
     logging.info("Creating %s", " ".join(cmd))
     if not args.dryrun:
         subprocess.run(cmd, shell=False, check=True)
-    return dirname
+    return str(dir_path)
 
 def stripComments(fn: str) -> str:
+    # NOTE: This is a simple heuristic that strips everything after '#'.
+    # It does not handle '#' inside quoted strings in systemd unit files.
+    # This is acceptable for file-comparison purposes since both source
+    # and target are stripped the same way.
     lines = []
-    with open(fn, "r") as fp:
-        for line in fp.readlines():
-            index = line.find("#")
-            if index >= 0:
-                line = line[:index]
-            line = line.strip()
-            if line:
-                lines.append(line)
+    for line in Path(fn).read_text().splitlines():
+        index = line.find("#")
+        if index >= 0:
+            line = line[:index]
+        line = line.strip()
+        if line:
+            lines.append(line)
     return "\n".join(lines)
 
 def needsToBeCopied(src: str, args: Namespace) -> str | None:
-    src = os.path.abspath(os.path.expanduser(src))
-    tgt = os.path.join(args.serviceDirectory, os.path.basename(src))
+    src_path = Path(src).expanduser().resolve()
+    tgt_path = Path(args.serviceDirectory) / src_path.name
 
-    if not args.force and os.path.isfile(tgt):
-        sContent = stripComments(src)
-        tContent = stripComments(tgt)
+    if not args.force and tgt_path.is_file():
+        sContent = stripComments(str(src_path))
+        tContent = stripComments(str(tgt_path))
         if sContent == tContent:
             return None
-    return tgt
+    return str(tgt_path)
 
 def copyFiles(items: set, args: Namespace) -> None:
     cmd = []
@@ -59,7 +63,8 @@ def copyFiles(items: set, args: Namespace) -> None:
         if not args.dryrun:
             subprocess.run(a, shell=False, check=True)
 
-def mkSystemctl(args: Namespace, options: list | None = None, extras: set | None = None, chk: bool = True) -> None:
+def mkSystemctl(args: Namespace, options: tuple[str, ...] | None = None,
+                extras: Iterable[str] | None = None, chk: bool = True) -> None:
     cmd = [args.systemctl, "--user"] if args.user else [args.sudo, args.systemctl]
     if options:
         cmd.extend(options)
@@ -72,42 +77,43 @@ def mkSystemctl(args: Namespace, options: list | None = None, extras: set | None
 def common(args: Namespace) -> tuple[set | None, set | None, set | None, set | None, set | None]:
     if not args.serviceDirectory:
         args.serviceDirectory = "~/.config/systemd/user" if args.user else "/etc/systemd/system"
-    args.serviceDirectory = os.path.abspath(os.path.expanduser(args.serviceDirectory))
+    args.serviceDirectory = str(Path(args.serviceDirectory).expanduser().resolve())
 
     services = set()
-    timers= set()
+    timers = set()
     toEnable = set()
     toStart = set()
 
     for service in args.service:
-        service = os.path.abspath(os.path.expanduser(service))
-        if not os.path.isfile(service):
-            logging.error("%s does not exist", service)
+        svc_path = Path(service).expanduser().resolve()
+        if not svc_path.is_file():
+            logging.error("%s does not exist", svc_path)
             return (None, None, None, None, None)
-        services.add(service)
-        dirname = os.path.dirname(service)
-        (basename, suffix) = os.path.splitext(os.path.basename(service))
-        timer = os.path.join(dirname, basename + ".timer") # Potential timer file
-        if os.path.isfile(timer):
-            timers.add(timer)
-            toEnable.add(os.path.basename(timer))
-            toStart.add(os.path.basename(timer))
+        services.add(str(svc_path))
+        timer_path = svc_path.with_suffix(".timer")
+        if timer_path.is_file():
+            timers.add(str(timer_path))
+            toEnable.add(timer_path.name)
+            toStart.add(timer_path.name)
         else:
-            toEnable.add(os.path.basename(service))
-            toStart.add(os.path.basename(service))
+            toEnable.add(svc_path.name)
+            toStart.add(svc_path.name)
 
-    allNames = set(map(os.path.basename, services.union(timers))) # All services and timers basename
+    allNames = set(Path(f).name for f in services.union(timers))
     return (services, timers, toEnable, toStart, allNames)
 
 def install(args: Namespace) -> int:
     (services, timers, toEnable, toStart, allNames) = common(args)
+
+    if services is None:
+        return 1
 
     if args.logdir:
         args.logdir = makeDirectory(args.logdir, args, True)
     args.serviceDirectory = makeDirectory(args.serviceDirectory, args)
 
     toCopy = set() # Files that need to be copied
-    for fn in services.union(timers): # Copy services and timers as needed
+    for fn in services.union(timers):  # type: ignore[union-attr, arg-type]
         tgt = needsToBeCopied(fn, args)
         if tgt:
             toCopy.add((fn, tgt))
@@ -117,17 +123,17 @@ def install(args: Namespace) -> int:
         return 0
 
     if toStart:
-        mkSystemctl(args, ("stop",), toStart, False) # Stop all the processes that need stopped
-    if toEnable: 
-        mkSystemctl(args, ("disable",), toEnable, False) # disable all the services/timers that need stopped
+        mkSystemctl(args, ("stop",), toStart, False)
+    if toEnable:
+        mkSystemctl(args, ("disable",), toEnable, False)
 
     copyFiles(toCopy, args)
-    mkSystemctl(args, ("daemon-reload",)) # Force reload of the daemon
+    mkSystemctl(args, ("daemon-reload",))
 
     if toEnable:
-        mkSystemctl(args, ("enable",),toEnable)
+        mkSystemctl(args, ("enable",), toEnable)
 
-    if toStart: 
+    if toStart:
         mkSystemctl(args, ("start",), toStart)
 
     if args.user:
@@ -139,21 +145,24 @@ def install(args: Namespace) -> int:
     mkSystemctl(args, ("--no-pager", "status"), allNames, False)
 
     if timers:
-        mkSystemctl(args, ("--no-pager", "list-timers"), map(os.path.basename, timers), False)
+        mkSystemctl(args, ("--no-pager", "list-timers"), (Path(t).name for t in timers), False)
 
     return 0
 
 def uninstall(args: Namespace) -> int:
     (services, timers, toEnable, toStart, allNames) = common(args)
 
+    if allNames is None:
+        return 1
+
     toDelete = set()
     for fn in allNames:
-        ofn = os.path.join(args.serviceDirectory, os.path.basename(fn))
-        if os.path.isfile(ofn):
-            toDelete.add(ofn)
+        ofn = Path(args.serviceDirectory) / fn
+        if ofn.is_file():
+            toDelete.add(str(ofn))
 
     if not toDelete:
-        return 0 # Nothing to be removed
+        return 0
     if toStart:
         mkSystemctl(args, ("stop",), toStart, False)
     if toEnable:
@@ -161,39 +170,44 @@ def uninstall(args: Namespace) -> int:
 
     cmd = [args.rm, "-f"] if args.user else [args.sudo, args.rm, "-f"]
     cmd.extend(toDelete)
-    subprocess.run(cmd, shell=False, check=True)
+    logging.info("Removing %s", " ".join(cmd))
+    if not args.dryrun:
+        subprocess.run(cmd, shell=False, check=True)
 
     mkSystemctl(args, ("daemon-reload",))
     return 0
 
 def addArgs(parser: ArgumentParser) -> None:
-    grp = parser.add_mutually_exclusive_group()
-    grp.add_argument("--install", action="store_true", help="Install services and timers")
-    grp.add_argument("--uninstall", action="store_true", help="remove services and timers")
+    action_grp = parser.add_mutually_exclusive_group()
+    action_grp.add_argument("--install", action="store_true", help="Install services and timers")
+    action_grp.add_argument("--uninstall", action="store_true", help="remove services and timers")
 
-    grp = parser.add_mutually_exclusive_group()
-    grp.add_argument("--user", action="store_true", help="Install in user space")
-    grp.add_argument("--system", action="store_true", help="Install in system space")
+    mode_grp = parser.add_mutually_exclusive_group()
+    mode_grp.add_argument("--user", action="store_true", help="Install in user space")
+    mode_grp.add_argument("--system", action="store_true", help="Install in system space")
 
-    grp = parser.add_argument_group("Command paths")
-    grp.add_argument("--sudo", type=str, default="/usr/bin/sudo", help="sudo executable")
-    grp.add_argument("--systemctl", type=str, default="/usr/bin/systemctl",
+    cmd_grp = parser.add_argument_group("Command paths")
+    cmd_grp.add_argument("--sudo", type=str, default="sudo", help="sudo executable")
+    cmd_grp.add_argument("--systemctl", type=str, default="systemctl",
                      help="systemctl executable")
-    grp.add_argument("--loginctl", type=str, default="/usr/bin/loginctl",
+    cmd_grp.add_argument("--loginctl", type=str, default="loginctl",
                      help="loginctl executable")
-    grp.add_argument("--mkdir", type=str, default="/bin/mkdir", help="mkdir executable")
-    grp.add_argument("--cp", type=str, default="/bin/cp", help="cp executable")
-    grp.add_argument("--rm", type=str, default="/bin/rm", help="rm executable")
+    cmd_grp.add_argument("--mkdir", type=str, default="mkdir", help="mkdir executable")
+    cmd_grp.add_argument("--cp", type=str, default="cp", help="cp executable")
+    cmd_grp.add_argument("--rm", type=str, default="rm", help="rm executable")
 
-    grp = parser.add_argument_group("Service/timer related options")
-    grp.add_argument("--force", action="store_true", help="Force reloading ...")
-    grp.add_argument("--serviceDirectory", type=str, help="Where to copy service file to")
-    grp.add_argument("--service", type=str, required=True, action="append", help="Service file(s)")
-    grp.add_argument("--logdir", type=str, default="~/logs", help="Where logfiles are stored")
-    grp.add_argument("--dryrun", action="store_true", help="Do not actually install anything")
+    svc_grp = parser.add_argument_group("Service/timer related options")
+    svc_grp.add_argument("--force", action="store_true", help="Force reloading ...")
+    svc_grp.add_argument("--serviceDirectory", type=str, help="Where to copy service file to")
+    svc_grp.add_argument("--service", type=str, required=True, action="append", help="Service file(s)")
+    svc_grp.add_argument("--logdir", type=str, default="~/logs", help="Where logfiles are stored")
+    svc_grp.add_argument("--dryrun", action="store_true", help="Do not actually install anything")
 
 if __name__ == "__main__":
-    import Logger
+    try:
+        from TPWUtils import Logger
+    except ImportError:
+        import Logger  # type: ignore[no-redef]
 
     parser = ArgumentParser()
     Logger.addArgs(parser)

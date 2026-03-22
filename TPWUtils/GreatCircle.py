@@ -8,6 +8,7 @@
 
 import numpy as np
 from enum import Enum
+import warnings
 
 class Units(float, Enum):
     Meters = 1.
@@ -18,7 +19,7 @@ class Units(float, Enum):
 def greatCircle(lon1: float | np.ndarray, lat1: float | np.ndarray,
                 lon2: float | np.ndarray, lat2: float | np.ndarray,
                 units: Units = Units.Meters, criteria: float = 1e-12) -> np.ndarray:
-    ''' Radius of earth in meters using Vincenty's inverse method '''
+    ''' Calculate great circle distance using Vincenty's inverse method '''
 
     lon1 = np.atleast_1d(lon1)
     lat1 = np.atleast_1d(lat1)
@@ -53,7 +54,8 @@ def greatCircle(lon1: float | np.ndarray, lat1: float | np.ndarray,
 
     lambdaTerm = dLon # Initial guess of the lambda term
 
-    for _ in range(10): # Iteration loop through Vincenty's inverse problem to get the distance
+    maxIter = 50
+    for _ in range(maxIter): # Iteration loop through Vincenty's inverse problem to get the distance
         sinLambda = np.sin(lambdaTerm)
         cosLambda = np.cos(lambdaTerm)
         sinSigma = np.sqrt(
@@ -88,6 +90,13 @@ def greatCircle(lon1: float | np.ndarray, lat1: float | np.ndarray,
         # Handle convergence check for empty or scalar arrays
         if delta.size == 0 or (delta.size > 0 and np.nanmax(delta) < criteria):
             break
+    else:
+        warnings.warn(
+            f"Vincenty formula failed to converge after {maxIter} iterations. "
+            "Results may be inaccurate for near-antipodal points.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
 
     u2 = cosAlpha2_safe * (rMajor**2 - rMinor**2) / rMinor**2
     A = 1 + u2/16384 * (4096 + u2 * (-768 + u2 * (320 - 175 * u2)))
@@ -99,12 +108,12 @@ def greatCircle(lon1: float | np.ndarray, lat1: float | np.ndarray,
                 B/6 * cos2Sigma * (-3 + 4 * sinSigma**2) * (-3 + 4 * cos2Sigma**2))
              )
 
-    a = np.zeros(qSame.shape)
+    result = np.zeros(qSame.shape)
     # Calculate distance, replacing any NaN or Inf with 0
     distance = units * rMinor * A * (sigma - deltaSigma)
     distance = np.where(np.isfinite(distance), distance, 0)
-    a[qDiff] = distance # Distance on the ellipsoid
-    return a
+    result[qDiff] = distance # Distance on the ellipsoid
+    return result
 
 class DistanceDegree:
     """Calculate the great circle distance on the earth as an oblate spheroid."""
@@ -126,12 +135,12 @@ class DistanceDegree:
 
 class Dist2Lon(DistanceDegree):
     def __init__(self, latRef: float, lonRef: float, re: Units = Units.Meters) -> None:
-        DistanceDegree.__init__(self,
+        super().__init__(
                 float(greatCircle(lonRef-0.5, latRef, lonRef+0.5, latRef, re)[0]), lonRef)
 
 class Dist2Lat(DistanceDegree):
     def __init__(self, latRef: float, lonRef: float, re: Units = Units.Meters) -> None:
-        DistanceDegree.__init__(self,
+        super().__init__(
                 float(greatCircle(lonRef, latRef-0.5, lonRef, latRef+0.5, re)[0]), latRef)
 
 if __name__ == "__main__":
@@ -148,14 +157,14 @@ if __name__ == "__main__":
             print(ds)
             df = ds.to_dataframe()
             print(df)
-            df["dist2"] = greatCircle(df.lon0, df.lat0, df.lon1, df.lat1)
+            df["dist2"] = greatCircle(df.lon0, df.lat0, df.lon1, df.lat1)  # type: ignore[arg-type]
             df["delta"] = df.dist - df.dist2
             print(df)
             print("max difference", df.delta.max())
     else: # Some uniform spacing
         n = 10
         df = pd.DataFrame({"lat1": np.linspace(-50,50,n), "lon1": np.linspace(-180,180,n)})
-        df["meters"] = greatCircle(df.lon1, df.lat1, -df.lon1, -df.lat1) # Default of meters
-        df["nm"]     = greatCircle(df.lon1, df.lat1, -df.lon1, -df.lat1, Units.NauticalMiles)
-        df["same"]   = greatCircle(df.lon1, df.lat1,  df.lon1,  df.lat1) # Should all be zero
+        df["meters"] = greatCircle(df.lon1, df.lat1, -df.lon1, -df.lat1)  # type: ignore[arg-type]
+        df["nm"]     = greatCircle(df.lon1, df.lat1, -df.lon1, -df.lat1, Units.NauticalMiles)  # type: ignore[arg-type]
+        df["same"]   = greatCircle(df.lon1, df.lat1,  df.lon1,  df.lat1)  # type: ignore[arg-type]
         print(df)

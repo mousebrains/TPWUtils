@@ -52,5 +52,17 @@ class TestSingleInstance(unittest.TestCase):
             si.__exit__(None, None, None)
 
 
+    def test_exception_chaining(self):
+        """Test that RuntimeError chains the original OSError."""
+        key = "test_chaining_key_33333"
+
+        with SingleInstance(key):
+            try:
+                with SingleInstance(key):
+                    pass
+            except RuntimeError as e:
+                self.assertIsNotNone(e.__cause__)
+
+
 if __name__ == '__main__':
     unittest.main()
